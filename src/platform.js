@@ -2,12 +2,20 @@
 
 const { normalizeConfig, ValidationError } = require('./config');
 const { AccessoryRegistry } = require('./registry');
+const { OperationCoordinator } = require('./execution');
+const { BasicSwitchAccessory } = require('./accessories/basicSwitchAccessory');
+const { ContextSensorAccessory } = require('./accessories/contextSensorAccessory');
+const { PLATFORM_NAME, PLUGIN_NAME } = require('./settings');
+
+const SUPPORTED_KINDS = new Set(['switch', 'contextSensor']);
 
 class UltimateSwitchesPlatform {
   constructor(log, config, api) {
     this.log = log;
     this.api = api;
     this.cachedAccessories = new Map();
+    this.liveAccessories = new Map();
+    this.operationCoordinator = new OperationCoordinator();
 
     try {
       this.config = normalizeConfig(config);
@@ -24,10 +32,12 @@ class UltimateSwitchesPlatform {
 
     if (this.api) {
       this.api.on('didFinishLaunching', () => {
-        this.log.info('[Init] Finished launching; preparing accessory registry');
-        this.registry.load(this.config);
-        const stats = this.registry.stats();
-        this.log.info('[Init] Planned accessories: %d (%j)', stats.total, stats.byKind);
+        this.log.info('[Init] Finished launching; preparing accessories');
+        this.initializeAccessories();
+      });
+
+      this.api.on('shutdown', () => {
+        this.liveAccessories.forEach((instance) => instance.stop?.());
       });
     }
   }
@@ -35,6 +45,75 @@ class UltimateSwitchesPlatform {
   configureAccessory(accessory) {
     this.cachedAccessories.set(accessory.UUID, accessory);
     this.log.debug('[Cache] Restored accessory: %s', accessory.displayName);
+  }
+
+  initializeAccessories() {
+    this.registry.load(this.config);
+    const stats = this.registry.stats();
+    this.log.info('[Init] Planned accessory descriptors: %d (%j)', stats.total, stats.byKind);
+
+    const activeUUIDs = new Set();
+
+    this.registry.descriptors.forEach((descriptor) => {
+      if (!SUPPORTED_KINDS.has(descriptor.kind)) {
+        this.log.debug('[Init] Deferred descriptor kind not implemented yet: %s (%s)', descriptor.kind, descriptor.name);
+        return;
+      }
+
+      const uuid = this.api.hap.uuid.generate(`${PLATFORM_NAME}:${descriptor.key}`);
+      activeUUIDs.add(uuid);
+
+      const category = descriptor.kind === 'contextSensor'
+        ? this.api.hap.Accessory.Categories.SENSOR
+        : this.api.hap.Accessory.Categories.SWITCH;
+
+      let accessory = this.cachedAccessories.get(uuid);
+      if (!accessory) {
+        accessory = new this.api.platformAccessory(descriptor.name, uuid, category);
+        accessory.context.key = descriptor.key;
+        accessory.context.kind = descriptor.kind;
+        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+        this.log.info('[Init] Registered accessory: %s (%s)', descriptor.name, descriptor.kind);
+      } else {
+        accessory.displayName = descriptor.name;
+        accessory.context.key = descriptor.key;
+        accessory.context.kind = descriptor.kind;
+        this.api.updatePlatformAccessories([accessory]);
+        this.cachedAccessories.delete(uuid);
+        this.log.debug('[Init] Reused cached accessory: %s (%s)', descriptor.name, descriptor.kind);
+      }
+
+      const instance = this.createAccessoryInstance(descriptor, accessory);
+      if (!instance) {
+        return;
+      }
+
+      instance.configure();
+      this.liveAccessories.set(uuid, instance);
+    });
+
+    const stale = Array.from(this.cachedAccessories.values())
+      .filter((accessory) => !activeUUIDs.has(accessory.UUID));
+
+    if (stale.length) {
+      this.log.info('[Init] Removing %d stale accessories', stale.length);
+      this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, stale);
+      stale.forEach((accessory) => {
+        this.cachedAccessories.delete(accessory.UUID);
+      });
+    }
+  }
+
+  createAccessoryInstance(descriptor, accessory) {
+    if (descriptor.kind === 'switch') {
+      return new BasicSwitchAccessory(this.api, this.log, accessory, descriptor.config, this.operationCoordinator);
+    }
+
+    if (descriptor.kind === 'contextSensor') {
+      return new ContextSensorAccessory(this.api, this.log, accessory, descriptor.config);
+    }
+
+    return null;
   }
 }
 

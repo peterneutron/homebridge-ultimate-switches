@@ -4,31 +4,31 @@ function buildDescriptors(config) {
   const descriptors = [];
 
   config.commandSwitches.forEach((item) => {
-    descriptors.push({ kind: 'commandSwitch', name: item.name, key: `command:${item.name}` });
+    descriptors.push({ kind: 'commandSwitch', name: item.name, key: `command:${item.name}`, config: item });
   });
 
   config.switches.forEach((item) => {
-    descriptors.push({ kind: 'switch', name: item.name, key: `switch:${item.name}` });
+    descriptors.push({ kind: 'switch', name: item.name, key: `switch:${item.name}`, config: item });
   });
 
   config.timers.forEach((item) => {
-    descriptors.push({ kind: 'timer', name: item.name, key: `timer:${item.name}` });
+    descriptors.push({ kind: 'timer', name: item.name, key: `timer:${item.name}`, config: item });
   });
 
   config.locks.forEach((item) => {
-    descriptors.push({ kind: 'lock', name: item.name, key: `lock:${item.name}` });
+    descriptors.push({ kind: 'lock', name: item.name, key: `lock:${item.name}`, config: item });
   });
 
   config.securitySystems.forEach((item) => {
-    descriptors.push({ kind: 'security', name: item.name, key: `security:${item.name}` });
+    descriptors.push({ kind: 'security', name: item.name, key: `security:${item.name}`, config: item });
   });
 
   config.calendarTriggers.forEach((item) => {
-    descriptors.push({ kind: 'calendar', name: item.name, key: `calendar:${item.name}` });
+    descriptors.push({ kind: 'calendar', name: item.name, key: `calendar:${item.name}`, config: item });
   });
 
   if (config.contextSensor.enabled) {
-    descriptors.push({ kind: 'contextSensor', name: config.contextSensor.name, key: 'contextSensor' });
+    descriptors.push({ kind: 'contextSensor', name: config.contextSensor.name, key: 'contextSensor', config: config.contextSensor });
   }
 
   return descriptors;

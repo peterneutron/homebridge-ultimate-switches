@@ -3,6 +3,10 @@
 Unified automation switches and trigger primitives for Homebridge 1.x and 2.x.
 
 Current status: runtime scaffold + normalized configuration contract are in place.
+Implemented accessory families:
+
+- `switches[]`
+- `contextSensor`
 
 ## Platform
 
@@ -25,6 +29,11 @@ Core v1 groups:
 - `securitySystems[]`
 - `calendarTriggers[]`
 - `contextSensor`
+
+Non-blocking behavior:
+
+- Operations are serialized per accessory key.
+- Different accessories run concurrently, so one long-running operation does not block unrelated switches/events.
 
 ## Development
 
