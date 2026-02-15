@@ -7,11 +7,15 @@ const { UltimateSwitchesPlatform } = require('../src/platform');
 
 function createBaseLog() {
   const warnings = [];
+  const errors = [];
   return {
     warnings,
+    errors,
     log: {
       info() {},
-      error() {},
+      error(format, ...args) {
+        errors.push({ format, args });
+      },
       debug() {},
       warn(format, ...args) {
         warnings.push({ format, args });
@@ -95,32 +99,16 @@ function createMockApi() {
   return { api, registered };
 }
 
-test('platform warns once per group when blank placeholders are pruned', () => {
+test('platform rejects invalid placeholder-like rows', () => {
   const sink = createBaseLog();
-  new UltimateSwitchesPlatform(sink.log, {
-    commandSwitches: [{ polling: false, pollIntervalSeconds: 5, commandTimeoutSeconds: 2 }],
-    switches: [{ defaultOn: false, persistState: false }],
-    calendarTriggers: [{ updateIntervalMinutes: 60, requestTimeoutSeconds: 15 }],
+
+  assert.throws(() => {
+    new UltimateSwitchesPlatform(sink.log, {
+      commandSwitches: [{ polling: false, pollIntervalSeconds: 5, commandTimeoutSeconds: 2 }],
+    });
   });
 
-  assert.equal(sink.warnings.length, 3);
-  assert.equal(sink.warnings[0].format, '[Config] Pruned %d blank placeholder row(s) from %s');
-  assert.deepEqual(sink.warnings[0].args, [1, 'commandSwitches']);
-  assert.deepEqual(sink.warnings[1].args, [1, 'switches']);
-  assert.deepEqual(sink.warnings[2].args, [1, 'calendarTriggers']);
-});
-
-test('platform does not warn when no placeholder rows are pruned', () => {
-  const sink = createBaseLog();
-  new UltimateSwitchesPlatform(sink.log, {
-    commandSwitches: [{
-      name: 'Cmd',
-      onCommand: 'echo on',
-      offCommand: 'echo off',
-    }],
-  });
-
-  assert.equal(sink.warnings.length, 0);
+  assert.equal(sink.errors.length > 0, true);
 });
 
 test('platform applies accessory information during initialization', () => {

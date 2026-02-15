@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ultimate Switches Configuration</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Ultimate Switches</h1>
+    <p class="muted">Custom configuration editor. Rows are only created when you click an <code>Add</code> button.</p>
+
+    <div id="errorBanner" class="error-banner hidden"></div>
+
+    <section id="generalSection" class="card"></section>
+    <section id="commandSection" class="card"></section>
+    <section id="switchSection" class="card"></section>
+    <section id="timerSection" class="card"></section>
+    <section id="lockSection" class="card"></section>
+    <section id="securitySection" class="card"></section>
+    <section id="calendarSection" class="card"></section>
+    <section id="contextSection" class="card"></section>
+
+    <div id="validationErrors" class="errors"></div>
+
+    <div class="toolbar">
+      <button id="validateBtn" class="btn secondary" type="button">Validate</button>
+      <button id="saveBtn" class="btn" type="button">Save Configuration</button>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 {
   "pluginAlias": "UltimateSwitches",
   "pluginType": "platform",
+  "customUi": true,
   "singular": true,
   "strictValidation": true,
   "headerDisplay": "Unified automation switches and triggers for Homebridge (HB1/HB2).",

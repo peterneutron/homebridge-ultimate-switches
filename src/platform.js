@@ -1,6 +1,6 @@
 'use strict';
 
-const { normalizeConfig, ValidationError, getNormalizationMeta } = require('./config');
+const { normalizeConfig, ValidationError } = require('./config');
 const { AccessoryRegistry } = require('./registry');
 const { OperationCoordinator } = require('./execution');
 const { createLogger } = require('./logger');
@@ -36,7 +36,6 @@ class UltimateSwitchesPlatform {
     }
 
     this.log = createLogger(this.baseLog, this.config.debug);
-    this.logConfigPruneWarnings(getNormalizationMeta(this.config).pruneCounters);
     this.registry = new AccessoryRegistry(this.log);
 
     if (this.api) {
@@ -49,26 +48,6 @@ class UltimateSwitchesPlatform {
         this.liveAccessories.forEach((instance) => instance.stop?.());
       });
     }
-  }
-
-  logConfigPruneWarnings(pruneCounters) {
-    const labels = {
-      commandSwitches: 'commandSwitches',
-      switches: 'switches',
-      timers: 'timers',
-      locks: 'locks',
-      securitySystems: 'securitySystems',
-      calendarTriggers: 'calendarTriggers',
-      calendarEvents: 'calendarTriggers[].events',
-      notifications: 'calendarTriggers[].events[].notifications',
-    };
-
-    Object.entries(labels).forEach(([key, label]) => {
-      const count = Number(pruneCounters?.[key] || 0);
-      if (count > 0) {
-        this.log.warn('[Config] Pruned %d blank placeholder row(s) from %s', count, label);
-      }
-    });
   }
 
   configureAccessory(accessory) {

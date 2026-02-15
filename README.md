@@ -25,6 +25,8 @@ Config UI X schema is at:
 
 - `config.schema.json`
 
+Configuration is managed via custom UI (`customUi: true`) to avoid schema-form placeholder row artifacts.
+
 Core v1 groups:
 
 - `commandSwitches[]`
@@ -58,8 +60,8 @@ npm test
 - Calendar trigger config UI is schema-driven; nested watched events and notifications are edited via auto-rendered nested array controls.
 - When `calendarTriggers[].triggerOnAnyEvent` is `false`, at least one `calendarTriggers[].events[]` regex pattern is required.
 - `debug: false` keeps logs minimal at info/warn/error level; set `debug: true` to enable verbose debug logs.
-- Config placeholder hardening: blank Config UI rows are auto-pruned at startup and one warning is logged per affected group.
-- Partially configured rows still fail fast with validation errors.
+- No runtime pruning: partially configured rows fail fast with explicit validation errors.
+- Custom UI creates rows only through explicit `Add ...` actions, so empty template rows are not auto-persisted.
 - `contextSensor.latitude` and `contextSensor.longitude` are required only when `contextSensor.enabled` is `true`.
 - Accessory metadata is auto-generated for all accessory kinds:
 - `Manufacturer`: `Ultimate Switches`
