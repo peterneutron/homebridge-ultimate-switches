@@ -81,12 +81,6 @@ textarea { min-height: 80px; resize: vertical; }
   gap: 8px;
   margin-top: 10px;
 }
-.toolbar {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  margin-top: 16px;
-}
 .errors {
   color: var(--danger);
   white-space: pre-wrap;

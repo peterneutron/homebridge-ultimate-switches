@@ -47,6 +47,7 @@ function createMockApi() {
       this.characteristics = new Map();
       this.values = new Map();
       this.subtype = undefined;
+      this.displayName = '';
     }
 
     getCharacteristic(type) {
@@ -60,6 +61,11 @@ function createMockApi() {
       this.values.set(type, value);
       return this;
     }
+
+    setCharacteristic(type, value) {
+      this.values.set(type, value);
+      return this;
+    }
   }
 
   return {
@@ -70,6 +76,7 @@ function createMockApi() {
         LightSensor: MockService,
       },
       Characteristic: {
+        Name: 'Name',
         On: 'On',
         ContactSensorState: {
           CONTACT_DETECTED: 1,
@@ -90,9 +97,10 @@ function createMockAccessory() {
     getServiceById(type, subtype) {
       return store.find((item) => item.type === type && item.subtype === subtype)?.instance;
     },
-    addService(type, _name, subtype) {
+    addService(type, name, subtype) {
       const instance = new type();
       instance.subtype = subtype;
+      instance.displayName = name;
       store.push({ type, subtype, instance });
       this.services = store.map((s) => s.instance);
       return instance;
@@ -229,4 +237,73 @@ test('calendar notification triggers pulse and resets after timeout', async () =
   );
 
   instance.stop();
+});
+
+test('calendar service names are reconciled on reused cached services', async () => {
+  const api = createMockApi();
+  const accessory = createMockAccessory();
+  const scheduler = createFakeScheduler();
+
+  const now = Date.parse('2026-02-15T12:00:00Z');
+  const provider = {
+    listEvents: async () => [],
+  };
+
+  const initial = new CalendarTriggerAccessory(
+    api,
+    logger(),
+    accessory,
+    {
+      name: 'Developer',
+      url: 'https://example.invalid/ics',
+      updateIntervalMinutes: 60,
+      updateButton: true,
+      triggerOnUpdates: false,
+      triggerOnAnyEvent: false,
+      events: [{
+        name: '^Old$',
+        triggerOnUpdates: true,
+        notifications: [{ name: 'Old Notification', startOffsetMinutes: 0, endOffsetMinutes: 0 }],
+      }],
+    },
+    new OperationCoordinator(),
+    provider,
+    () => now,
+    scheduler,
+  );
+
+  initial.configure();
+  initial.stop();
+
+  const updated = new CalendarTriggerAccessory(
+    api,
+    logger(),
+    accessory,
+    {
+      name: 'Developer',
+      url: 'https://example.invalid/ics',
+      updateIntervalMinutes: 60,
+      updateButton: true,
+      triggerOnUpdates: false,
+      triggerOnAnyEvent: false,
+      events: [{
+        name: '^(KF|KT)$',
+        triggerOnUpdates: true,
+        notifications: [{ name: 'LOL', startOffsetMinutes: 0, endOffsetMinutes: 0 }],
+      }],
+    },
+    new OperationCoordinator(),
+    provider,
+    () => now,
+    scheduler,
+  );
+
+  updated.configure();
+
+  const eventService = accessory.getServiceById(api.hap.Service.ContactSensor, 'calendar-event-0');
+  const notifService = accessory.getServiceById(api.hap.Service.ContactSensor, 'calendar-notification-0-0');
+  assert.equal(eventService.displayName, 'Developer ^(KF|KT)$');
+  assert.equal(notifService.displayName, 'Developer LOL');
+
+  updated.stop();
 });

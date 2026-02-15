@@ -118,11 +118,17 @@ function inputField({ label, value, onInput, placeholder = '', type = 'text', st
   const input = el('input', { type, placeholder });
   if (type === 'checkbox') {
     input.checked = Boolean(value);
-    input.addEventListener('change', () => onInput(input.checked));
+    input.addEventListener('change', () => {
+      onInput(input.checked);
+      syncValidationOnly();
+    });
   } else {
     input.value = value ?? '';
     if (step !== undefined) input.step = String(step);
-    input.addEventListener('input', () => onInput(type === 'number' ? input.value : input.value));
+    input.addEventListener('input', () => {
+      onInput(input.value);
+      syncValidationOnly();
+    });
   }
 
   const wrapper = el('div');
@@ -130,7 +136,7 @@ function inputField({ label, value, onInput, placeholder = '', type = 'text', st
   return wrapper;
 }
 
-function render() {
+function renderStructural() {
   renderGeneral();
   renderCommandSwitches();
   renderSwitches();
@@ -139,7 +145,7 @@ function render() {
   renderSecurity();
   renderCalendar();
   renderContext();
-  renderValidation();
+  syncValidationOnly();
 }
 
 function rowHeader(title, onRemove) {
@@ -158,13 +164,13 @@ function renderGeneral() {
         label: 'Name',
         value: state.config.name,
         placeholder: 'Ultimate Switches',
-        onInput: (v) => { state.config.name = v; render(); },
+        onInput: (v) => { state.config.name = v; },
       }),
       inputField({
         label: 'Debug Logging',
         type: 'checkbox',
         value: state.config.debug,
-        onInput: (v) => { state.config.debug = v; render(); },
+        onInput: (v) => { state.config.debug = v; },
       }),
     ]),
   );
@@ -185,7 +191,7 @@ function renderListSection({ id, title, items, addLabel, createDefault, renderRo
       text: addLabel,
       onclick: () => {
         items.push(createDefault());
-        render();
+        renderStructural();
       },
     }),
   ]));
@@ -202,15 +208,18 @@ function renderCommandSwitches() {
     createDefault: defaultCommandSwitch,
     renderRow: (item, index) => {
       const row = el('div', { className: 'row' });
-      row.append(rowHeader(`Command Switch ${index + 1}`, () => { state.config.commandSwitches.splice(index, 1); render(); }));
+      row.append(rowHeader(`Command Switch ${index + 1}`, () => {
+        state.config.commandSwitches.splice(index, 1);
+        renderStructural();
+      }));
       row.append(el('div', { className: 'grid' }, [
-        inputField({ label: 'Name', value: item.name, placeholder: 'Kitchen Light', onInput: (v) => { item.name = v; render(); } }),
-        inputField({ label: 'On Command', value: item.onCommand, placeholder: 'echo on', onInput: (v) => { item.onCommand = v; render(); } }),
-        inputField({ label: 'Off Command', value: item.offCommand, placeholder: 'echo off', onInput: (v) => { item.offCommand = v; render(); } }),
-        inputField({ label: 'State Command', value: item.stateCommand, placeholder: 'echo state', onInput: (v) => { item.stateCommand = v; render(); } }),
-        inputField({ label: 'Polling', type: 'checkbox', value: item.polling, onInput: (v) => { item.polling = v; render(); } }),
-        inputField({ label: 'Poll Interval (s)', type: 'number', value: item.pollIntervalSeconds, onInput: (v) => { item.pollIntervalSeconds = Number(v); render(); } }),
-        inputField({ label: 'Command Timeout (s)', type: 'number', value: item.commandTimeoutSeconds, onInput: (v) => { item.commandTimeoutSeconds = Number(v); render(); } }),
+        inputField({ label: 'Name', value: item.name, placeholder: 'Kitchen Light', onInput: (v) => { item.name = v; } }),
+        inputField({ label: 'On Command', value: item.onCommand, placeholder: 'echo on', onInput: (v) => { item.onCommand = v; } }),
+        inputField({ label: 'Off Command', value: item.offCommand, placeholder: 'echo off', onInput: (v) => { item.offCommand = v; } }),
+        inputField({ label: 'State Command', value: item.stateCommand, placeholder: 'echo state', onInput: (v) => { item.stateCommand = v; } }),
+        inputField({ label: 'Polling', type: 'checkbox', value: item.polling, onInput: (v) => { item.polling = v; } }),
+        inputField({ label: 'Poll Interval (s)', type: 'number', value: item.pollIntervalSeconds, onInput: (v) => { item.pollIntervalSeconds = Number(v); } }),
+        inputField({ label: 'Command Timeout (s)', type: 'number', value: item.commandTimeoutSeconds, onInput: (v) => { item.commandTimeoutSeconds = Number(v); } }),
       ]));
       return row;
     },
@@ -226,11 +235,14 @@ function renderSwitches() {
     createDefault: defaultSwitch,
     renderRow: (item, index) => {
       const row = el('div', { className: 'row' });
-      row.append(rowHeader(`Basic Switch ${index + 1}`, () => { state.config.switches.splice(index, 1); render(); }));
+      row.append(rowHeader(`Basic Switch ${index + 1}`, () => {
+        state.config.switches.splice(index, 1);
+        renderStructural();
+      }));
       row.append(el('div', { className: 'grid' }, [
-        inputField({ label: 'Name', value: item.name, placeholder: 'Porch', onInput: (v) => { item.name = v; render(); } }),
-        inputField({ label: 'Default On', type: 'checkbox', value: item.defaultOn, onInput: (v) => { item.defaultOn = v; render(); } }),
-        inputField({ label: 'Persist State', type: 'checkbox', value: item.persistState, onInput: (v) => { item.persistState = v; render(); } }),
+        inputField({ label: 'Name', value: item.name, placeholder: 'Porch', onInput: (v) => { item.name = v; } }),
+        inputField({ label: 'Default On', type: 'checkbox', value: item.defaultOn, onInput: (v) => { item.defaultOn = v; } }),
+        inputField({ label: 'Persist State', type: 'checkbox', value: item.persistState, onInput: (v) => { item.persistState = v; } }),
       ]));
       return row;
     },
@@ -246,13 +258,16 @@ function renderTimers() {
     createDefault: defaultTimer,
     renderRow: (item, index) => {
       const row = el('div', { className: 'row' });
-      row.append(rowHeader(`Timer ${index + 1}`, () => { state.config.timers.splice(index, 1); render(); }));
+      row.append(rowHeader(`Timer ${index + 1}`, () => {
+        state.config.timers.splice(index, 1);
+        renderStructural();
+      }));
       row.append(el('div', { className: 'grid' }, [
-        inputField({ label: 'Name', value: item.name, placeholder: 'Stair Light Auto-Off', onInput: (v) => { item.name = v; render(); } }),
-        inputField({ label: 'Period Seconds', type: 'number', value: item.periodSeconds, onInput: (v) => { item.periodSeconds = Number(v); render(); } }),
-        inputField({ label: 'Auto Off', type: 'checkbox', value: item.autoOff, onInput: (v) => { item.autoOff = v; render(); } }),
-        inputField({ label: 'Emit Motion Pulse', type: 'checkbox', value: item.emitMotionPulse, onInput: (v) => { item.emitMotionPulse = v; render(); } }),
-        inputField({ label: 'Persist State', type: 'checkbox', value: item.persistState, onInput: (v) => { item.persistState = v; render(); } }),
+        inputField({ label: 'Name', value: item.name, placeholder: 'Stair Light Auto-Off', onInput: (v) => { item.name = v; } }),
+        inputField({ label: 'Period Seconds', type: 'number', value: item.periodSeconds, onInput: (v) => { item.periodSeconds = Number(v); } }),
+        inputField({ label: 'Auto Off', type: 'checkbox', value: item.autoOff, onInput: (v) => { item.autoOff = v; } }),
+        inputField({ label: 'Emit Motion Pulse', type: 'checkbox', value: item.emitMotionPulse, onInput: (v) => { item.emitMotionPulse = v; } }),
+        inputField({ label: 'Persist State', type: 'checkbox', value: item.persistState, onInput: (v) => { item.persistState = v; } }),
       ]));
       return row;
     },
@@ -268,9 +283,12 @@ function renderLocks() {
     createDefault: defaultLock,
     renderRow: (item, index) => {
       const row = el('div', { className: 'row' });
-      row.append(rowHeader(`Lock ${index + 1}`, () => { state.config.locks.splice(index, 1); render(); }));
+      row.append(rowHeader(`Lock ${index + 1}`, () => {
+        state.config.locks.splice(index, 1);
+        renderStructural();
+      }));
 
-      const select = el('select', { onchange: (e) => { item.defaultState = e.target.value; render(); } }, [
+      const select = el('select', { onchange: (e) => { item.defaultState = e.target.value; syncValidationOnly(); } }, [
         el('option', { value: 'unlocked', text: 'unlocked' }),
         el('option', { value: 'locked', text: 'locked' }),
       ]);
@@ -280,9 +298,9 @@ function renderLocks() {
       selectWrap.append(el('label', { text: 'Default State' }), select);
 
       row.append(el('div', { className: 'grid' }, [
-        inputField({ label: 'Name', value: item.name, placeholder: 'Virtual Gate', onInput: (v) => { item.name = v; render(); } }),
+        inputField({ label: 'Name', value: item.name, placeholder: 'Virtual Gate', onInput: (v) => { item.name = v; } }),
         selectWrap,
-        inputField({ label: 'Persist State', type: 'checkbox', value: item.persistState, onInput: (v) => { item.persistState = v; render(); } }),
+        inputField({ label: 'Persist State', type: 'checkbox', value: item.persistState, onInput: (v) => { item.persistState = v; } }),
       ]));
       return row;
     },
@@ -298,9 +316,12 @@ function renderSecurity() {
     createDefault: defaultSecurity,
     renderRow: (item, index) => {
       const row = el('div', { className: 'row' });
-      row.append(rowHeader(`Security System ${index + 1}`, () => { state.config.securitySystems.splice(index, 1); render(); }));
+      row.append(rowHeader(`Security System ${index + 1}`, () => {
+        state.config.securitySystems.splice(index, 1);
+        renderStructural();
+      }));
 
-      const select = el('select', { onchange: (e) => { item.defaultState = e.target.value; render(); } }, [
+      const select = el('select', { onchange: (e) => { item.defaultState = e.target.value; syncValidationOnly(); } }, [
         el('option', { value: 'unarmed', text: 'unarmed' }),
         el('option', { value: 'armed-stay', text: 'armed-stay' }),
         el('option', { value: 'armed-away', text: 'armed-away' }),
@@ -316,18 +337,17 @@ function renderSecurity() {
         placeholder: 'Alarm, Garage',
         onInput: (v) => {
           item.zones = String(v).split(',').map((s) => s.trim()).filter(Boolean);
-          render();
         },
       });
 
       row.append(el('div', { className: 'grid' }, [
-        inputField({ label: 'Name', value: item.name, placeholder: 'Home Alarm', onInput: (v) => { item.name = v; render(); } }),
+        inputField({ label: 'Name', value: item.name, placeholder: 'Home Alarm', onInput: (v) => { item.name = v; } }),
         selectWrap,
         zonesInput,
-        inputField({ label: 'Arm Away Label', value: item.armAwayButtonLabel, placeholder: 'Arm Away', onInput: (v) => { item.armAwayButtonLabel = v; render(); } }),
-        inputField({ label: 'Arm Stay Label', value: item.armStayButtonLabel, placeholder: 'Arm Stay', onInput: (v) => { item.armStayButtonLabel = v; render(); } }),
-        inputField({ label: 'Arm Night Label', value: item.armNightButtonLabel, placeholder: 'Arm Night', onInput: (v) => { item.armNightButtonLabel = v; render(); } }),
-        inputField({ label: 'Persist State', type: 'checkbox', value: item.persistState, onInput: (v) => { item.persistState = v; render(); } }),
+        inputField({ label: 'Arm Away Label', value: item.armAwayButtonLabel, placeholder: 'Arm Away', onInput: (v) => { item.armAwayButtonLabel = v; } }),
+        inputField({ label: 'Arm Stay Label', value: item.armStayButtonLabel, placeholder: 'Arm Stay', onInput: (v) => { item.armStayButtonLabel = v; } }),
+        inputField({ label: 'Arm Night Label', value: item.armNightButtonLabel, placeholder: 'Arm Night', onInput: (v) => { item.armNightButtonLabel = v; } }),
+        inputField({ label: 'Persist State', type: 'checkbox', value: item.persistState, onInput: (v) => { item.persistState = v; } }),
       ]));
 
       return row;
@@ -344,16 +364,19 @@ function renderCalendar() {
     createDefault: defaultCalendarTrigger,
     renderRow: (item, index) => {
       const row = el('div', { className: 'row' });
-      row.append(rowHeader(`Calendar Trigger ${index + 1}`, () => { state.config.calendarTriggers.splice(index, 1); render(); }));
+      row.append(rowHeader(`Calendar Trigger ${index + 1}`, () => {
+        state.config.calendarTriggers.splice(index, 1);
+        renderStructural();
+      }));
 
       row.append(el('div', { className: 'grid' }, [
-        inputField({ label: 'Name', value: item.name, placeholder: 'Family Calendar', onInput: (v) => { item.name = v; render(); } }),
-        inputField({ label: 'URL', value: item.url, placeholder: 'webcal://...', onInput: (v) => { item.url = v; render(); } }),
-        inputField({ label: 'Update Interval Minutes', type: 'number', value: item.updateIntervalMinutes, onInput: (v) => { item.updateIntervalMinutes = Number(v); render(); } }),
-        inputField({ label: 'Request Timeout Seconds', type: 'number', value: item.requestTimeoutSeconds, onInput: (v) => { item.requestTimeoutSeconds = Number(v); render(); } }),
-        inputField({ label: 'Update Button', type: 'checkbox', value: item.updateButton, onInput: (v) => { item.updateButton = v; render(); } }),
-        inputField({ label: 'Trigger On Updates', type: 'checkbox', value: item.triggerOnUpdates, onInput: (v) => { item.triggerOnUpdates = v; render(); } }),
-        inputField({ label: 'Trigger On Any Event', type: 'checkbox', value: item.triggerOnAnyEvent, onInput: (v) => { item.triggerOnAnyEvent = v; render(); } }),
+        inputField({ label: 'Name', value: item.name, placeholder: 'Family Calendar', onInput: (v) => { item.name = v; } }),
+        inputField({ label: 'URL', value: item.url, placeholder: 'webcal://...', onInput: (v) => { item.url = v; } }),
+        inputField({ label: 'Update Interval Minutes', type: 'number', value: item.updateIntervalMinutes, onInput: (v) => { item.updateIntervalMinutes = Number(v); } }),
+        inputField({ label: 'Request Timeout Seconds', type: 'number', value: item.requestTimeoutSeconds, onInput: (v) => { item.requestTimeoutSeconds = Number(v); } }),
+        inputField({ label: 'Update Button', type: 'checkbox', value: item.updateButton, onInput: (v) => { item.updateButton = v; } }),
+        inputField({ label: 'Trigger On Updates', type: 'checkbox', value: item.triggerOnUpdates, onInput: (v) => { item.triggerOnUpdates = v; } }),
+        inputField({ label: 'Trigger On Any Event', type: 'checkbox', value: item.triggerOnAnyEvent, onInput: (v) => { item.triggerOnAnyEvent = v; } }),
       ]));
       row.append(el('div', { className: 'small', text: 'If disabled, at least one watched event regex is required.' }));
 
@@ -362,11 +385,11 @@ function renderCalendar() {
         const evRow = el('div', { className: 'row' });
         evRow.append(rowHeader(`Watched Event ${evIndex + 1}`, () => {
           item.events.splice(evIndex, 1);
-          render();
+          renderStructural();
         }));
         evRow.append(el('div', { className: 'grid' }, [
-          inputField({ label: 'Regex Pattern', value: ev.name, placeholder: '^(KF|KT|GFW|GTW)$', onInput: (v) => { ev.name = v; render(); } }),
-          inputField({ label: 'Trigger On Updates', type: 'checkbox', value: ev.triggerOnUpdates, onInput: (v) => { ev.triggerOnUpdates = v; render(); } }),
+          inputField({ label: 'Regex Pattern', value: ev.name, placeholder: '^(KF|KT|GFW|GTW)$', onInput: (v) => { ev.name = v; } }),
+          inputField({ label: 'Trigger On Updates', type: 'checkbox', value: ev.triggerOnUpdates, onInput: (v) => { ev.triggerOnUpdates = v; } }),
         ]));
         evRow.append(el('div', { className: 'small', text: 'Regex pattern, e.g. ^(KF|KT|GFW|GTW)$' }));
 
@@ -375,12 +398,12 @@ function renderCalendar() {
           const nfRow = el('div', { className: 'row' });
           nfRow.append(rowHeader(`Notification ${nfIndex + 1}`, () => {
             ev.notifications.splice(nfIndex, 1);
-            render();
+            renderStructural();
           }));
           nfRow.append(el('div', { className: 'grid' }, [
-            inputField({ label: 'Name', value: nf.name, placeholder: 'Heating Start', onInput: (v) => { nf.name = v; render(); } }),
-            inputField({ label: 'Start Offset Minutes', type: 'number', value: nf.startOffsetMinutes, onInput: (v) => { nf.startOffsetMinutes = Number(v); render(); } }),
-            inputField({ label: 'End Offset Minutes', type: 'number', value: nf.endOffsetMinutes, onInput: (v) => { nf.endOffsetMinutes = Number(v); render(); } }),
+            inputField({ label: 'Name', value: nf.name, placeholder: 'Heating Start', onInput: (v) => { nf.name = v; } }),
+            inputField({ label: 'Start Offset Minutes', type: 'number', value: nf.startOffsetMinutes, onInput: (v) => { nf.startOffsetMinutes = Number(v); } }),
+            inputField({ label: 'End Offset Minutes', type: 'number', value: nf.endOffsetMinutes, onInput: (v) => { nf.endOffsetMinutes = Number(v); } }),
           ]));
           nfRow.append(el('div', { className: 'small', text: 'Offsets in minutes relative to event start/end.' }));
           notifWrap.append(nfRow);
@@ -396,7 +419,7 @@ function renderCalendar() {
                 ev.notifications = [];
               }
               ev.notifications.push(defaultNotification());
-              render();
+              renderStructural();
             },
           }),
         ]));
@@ -415,7 +438,7 @@ function renderCalendar() {
               item.events = [];
             }
             item.events.push(defaultCalendarEvent());
-            render();
+            renderStructural();
           },
         }),
       ]));
@@ -432,18 +455,17 @@ function renderContext() {
   root.replaceChildren(
     el('h2', { text: 'Context Sensor' }),
     el('div', { className: 'grid' }, [
-      inputField({ label: 'Enabled', type: 'checkbox', value: ctx.enabled, onInput: (v) => { ctx.enabled = v; render(); } }),
-      inputField({ label: 'Name', value: ctx.name, placeholder: 'Home Context', onInput: (v) => { ctx.name = v; render(); } }),
-      inputField({ label: 'Latitude', type: 'number', step: 0.000001, value: ctx.latitude, onInput: (v) => { ctx.latitude = v === '' ? undefined : Number(v); render(); } }),
-      inputField({ label: 'Longitude', type: 'number', step: 0.000001, value: ctx.longitude, onInput: (v) => { ctx.longitude = v === '' ? undefined : Number(v); render(); } }),
-      inputField({ label: 'Refresh Interval Seconds', type: 'number', value: ctx.refreshIntervalSeconds, onInput: (v) => { ctx.refreshIntervalSeconds = Number(v); render(); } }),
+      inputField({ label: 'Enabled', type: 'checkbox', value: ctx.enabled, onInput: (v) => { ctx.enabled = v; } }),
+      inputField({ label: 'Name', value: ctx.name, placeholder: 'Home Context', onInput: (v) => { ctx.name = v; } }),
+      inputField({ label: 'Latitude', type: 'number', step: 0.000001, value: ctx.latitude, onInput: (v) => { ctx.latitude = v === '' ? undefined : Number(v); } }),
+      inputField({ label: 'Longitude', type: 'number', step: 0.000001, value: ctx.longitude, onInput: (v) => { ctx.longitude = v === '' ? undefined : Number(v); } }),
+      inputField({ label: 'Refresh Interval Seconds', type: 'number', value: ctx.refreshIntervalSeconds, onInput: (v) => { ctx.refreshIntervalSeconds = Number(v); } }),
     ]),
   );
 }
 
 function validate(data) {
   const errors = [];
-  const seenGroup = (group) => new Set();
 
   const requireNonEmpty = (path, value) => {
     if (typeof value !== 'string' || value.trim() === '') {
@@ -457,7 +479,7 @@ function validate(data) {
     // keep collecting
   }
 
-  let seen = seenGroup('commandSwitches');
+  let seen = new Set();
   (data.commandSwitches || []).forEach((item, i) => {
     const p = `commandSwitches[${i}]`;
     const okName = requireNonEmpty(`${p}.name`, item.name);
@@ -473,7 +495,7 @@ function validate(data) {
     }
   });
 
-  seen = seenGroup('switches');
+  seen = new Set();
   (data.switches || []).forEach((item, i) => {
     const p = `switches[${i}]`;
     const okName = requireNonEmpty(`${p}.name`, item.name);
@@ -484,7 +506,7 @@ function validate(data) {
     }
   });
 
-  seen = seenGroup('timers');
+  seen = new Set();
   (data.timers || []).forEach((item, i) => {
     const p = `timers[${i}]`;
     const okName = requireNonEmpty(`${p}.name`, item.name);
@@ -495,7 +517,7 @@ function validate(data) {
     }
   });
 
-  seen = seenGroup('locks');
+  seen = new Set();
   (data.locks || []).forEach((item, i) => {
     const p = `locks[${i}]`;
     const okName = requireNonEmpty(`${p}.name`, item.name);
@@ -506,7 +528,7 @@ function validate(data) {
     }
   });
 
-  seen = seenGroup('securitySystems');
+  seen = new Set();
   (data.securitySystems || []).forEach((item, i) => {
     const p = `securitySystems[${i}]`;
     const okName = requireNonEmpty(`${p}.name`, item.name);
@@ -517,7 +539,7 @@ function validate(data) {
     }
   });
 
-  seen = seenGroup('calendarTriggers');
+  seen = new Set();
   (data.calendarTriggers || []).forEach((item, i) => {
     const p = `calendarTriggers[${i}]`;
     const okName = requireNonEmpty(`${p}.name`, item.name);
@@ -591,13 +613,11 @@ function serializeConfig() {
   return cfg;
 }
 
-function renderValidation() {
+function syncValidationOnly() {
   const errs = validate(serializeConfig());
   const node = document.getElementById('validationErrors');
   node.textContent = errs.length ? `Validation errors:\n- ${errs.join('\n- ')}` : '';
-
-  const saveBtn = document.getElementById('saveBtn');
-  saveBtn.disabled = errs.length > 0;
+  node.classList.toggle('hidden', errs.length === 0);
 
   if (typeof homebridge?.disableSaveButton === 'function') {
     if (errs.length > 0) {
@@ -606,9 +626,11 @@ function renderValidation() {
       homebridge.enableSaveButton();
     }
   }
+
+  return errs;
 }
 
-async function persistToHomebridge(saveNow) {
+async function persistToHomebridge(saveNow = false) {
   const payload = serializeConfig();
   const block = {
     ...state.baseBlock,
@@ -619,6 +641,7 @@ async function persistToHomebridge(saveNow) {
   if (typeof homebridge?.updatePluginConfig === 'function') {
     await homebridge.updatePluginConfig([block]);
   }
+
   if (saveNow && typeof homebridge?.savePluginConfig === 'function') {
     await homebridge.savePluginConfig();
   }
@@ -640,8 +663,18 @@ async function load() {
     state.config = mergeLoadedConfig(existing);
     state.loaded = true;
 
-    render();
+    renderStructural();
     await persistToHomebridge(false);
+
+    if (typeof homebridge?.onSave === 'function') {
+      homebridge.onSave(async () => {
+        const errs = syncValidationOnly();
+        if (errs.length > 0) {
+          throw new Error(errs[0]);
+        }
+        await persistToHomebridge(false);
+      });
+    }
   } catch (error) {
     banner.classList.remove('hidden');
     banner.textContent = `Failed to load UI: ${error.message}`;
@@ -651,22 +684,5 @@ async function load() {
     }
   }
 }
-
-document.getElementById('validateBtn').addEventListener('click', () => {
-  renderValidation();
-});
-
-document.getElementById('saveBtn').addEventListener('click', async () => {
-  const errors = validate(serializeConfig());
-  if (errors.length > 0) {
-    renderValidation();
-    return;
-  }
-
-  await persistToHomebridge(true);
-  if (typeof homebridge?.toast?.success === 'function') {
-    homebridge.toast.success('Configuration saved');
-  }
-});
 
 load();

@@ -6,6 +6,10 @@ const { computeProgress, isEventActive, shouldFireNotification } = require('../c
 
 const PULSE_MS = 10000;
 
+function isNonEmptyName(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 function safeRegex(pattern, log, label) {
   try {
     return new RegExp(pattern);
@@ -66,8 +70,33 @@ class CalendarTriggerAccessory {
   }
 
   ensureService(type, name, subtype) {
-    return this.accessory.getServiceById(type, subtype)
-      || this.accessory.addService(type, name, subtype);
+    const existing = this.accessory.getServiceById(type, subtype);
+    if (existing) {
+      this.syncServiceName(existing, name);
+      return existing;
+    }
+
+    const created = this.accessory.addService(type, name, subtype);
+    this.syncServiceName(created, name);
+    return created;
+  }
+
+  syncServiceName(service, name) {
+    if (!service || !isNonEmptyName(name)) {
+      return;
+    }
+
+    if (Object.hasOwn(service, 'displayName')) {
+      service.displayName = name;
+    }
+
+    if (typeof service.setCharacteristic === 'function') {
+      try {
+        service.setCharacteristic(this.api.hap.Characteristic.Name, name);
+      } catch (_error) {
+        // Not all service types expose Name; ignore safely.
+      }
+    }
   }
 
   removeServiceIfExists(type, subtype) {

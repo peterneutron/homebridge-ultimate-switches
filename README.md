@@ -62,6 +62,7 @@ npm test
 - `debug: false` keeps logs minimal at info/warn/error level; set `debug: true` to enable verbose debug logs.
 - No runtime pruning: partially configured rows fail fast with explicit validation errors.
 - Custom UI creates rows only through explicit `Add ...` actions, so empty template rows are not auto-persisted.
+- Custom UI uses native Homebridge Save only (no plugin-local save button); validation is live and invalid configs disable native Save.
 - `contextSensor.latitude` and `contextSensor.longitude` are required only when `contextSensor.enabled` is `true`.
 - Accessory metadata is auto-generated for all accessory kinds:
 - `Manufacturer`: `Ultimate Switches`
