@@ -8,6 +8,8 @@ Implemented accessory families:
 - `commandSwitches[]`
 - `switches[]`
 - `timers[]`
+- `locks[]`
+- `securitySystems[]`
 - `contextSensor`
 
 ## Platform

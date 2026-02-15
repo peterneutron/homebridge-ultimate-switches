@@ -6,10 +6,12 @@ const { OperationCoordinator } = require('./execution');
 const { BasicSwitchAccessory } = require('./accessories/basicSwitchAccessory');
 const { CommandSwitchAccessory } = require('./accessories/commandSwitchAccessory');
 const { ContextSensorAccessory } = require('./accessories/contextSensorAccessory');
+const { LockAccessory } = require('./accessories/lockAccessory');
+const { SecuritySystemAccessory } = require('./accessories/securitySystemAccessory');
 const { TimerSwitchAccessory } = require('./accessories/timerSwitchAccessory');
 const { PLATFORM_NAME, PLUGIN_NAME } = require('./settings');
 
-const SUPPORTED_KINDS = new Set(['commandSwitch', 'switch', 'timer', 'contextSensor']);
+const SUPPORTED_KINDS = new Set(['commandSwitch', 'switch', 'timer', 'lock', 'security', 'contextSensor']);
 
 class UltimateSwitchesPlatform {
   constructor(log, config, api) {
@@ -65,9 +67,7 @@ class UltimateSwitchesPlatform {
       const uuid = this.api.hap.uuid.generate(`${PLATFORM_NAME}:${descriptor.key}`);
       activeUUIDs.add(uuid);
 
-      const category = descriptor.kind === 'contextSensor'
-        ? this.api.hap.Accessory.Categories.SENSOR
-        : this.api.hap.Accessory.Categories.SWITCH;
+      const category = this.resolveCategory(descriptor.kind);
 
       let accessory = this.cachedAccessories.get(uuid);
       if (!accessory) {
@@ -123,7 +123,31 @@ class UltimateSwitchesPlatform {
       return new ContextSensorAccessory(this.api, this.log, accessory, descriptor.config);
     }
 
+    if (descriptor.kind === 'lock') {
+      return new LockAccessory(this.api, this.log, accessory, descriptor.config, this.operationCoordinator);
+    }
+
+    if (descriptor.kind === 'security') {
+      return new SecuritySystemAccessory(this.api, this.log, accessory, descriptor.config, this.operationCoordinator);
+    }
+
     return null;
+  }
+
+  resolveCategory(kind) {
+    if (kind === 'contextSensor') {
+      return this.api.hap.Accessory.Categories.SENSOR;
+    }
+
+    if (kind === 'lock') {
+      return this.api.hap.Accessory.Categories.DOOR_LOCK;
+    }
+
+    if (kind === 'security') {
+      return this.api.hap.Accessory.Categories.SECURITY_SYSTEM;
+    }
+
+    return this.api.hap.Accessory.Categories.SWITCH;
   }
 }
 
