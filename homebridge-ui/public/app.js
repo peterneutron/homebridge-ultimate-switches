@@ -7,6 +7,8 @@ const state = {
   syncing: false,
   pendingSync: false,
   syncTimer: undefined,
+  loadError: null,
+  syncError: null,
   baseBlock: {},
   config: {
     name: 'Ultimate Switches',
@@ -103,6 +105,29 @@ function mergeLoadedConfig(block) {
       ...(block.contextSensor && typeof block.contextSensor === 'object' ? block.contextSensor : {}),
     },
   };
+}
+
+function updateErrorBanner() {
+  const banner = document.getElementById('errorBanner');
+  if (!banner) {
+    return;
+  }
+
+  const messages = [];
+  if (state.loadError) {
+    messages.push(`Failed to load UI: ${state.loadError}`);
+  }
+  if (state.syncError) {
+    messages.push(`Draft sync failed: ${state.syncError}`);
+  }
+
+  if (messages.length) {
+    banner.classList.remove('hidden');
+    banner.textContent = messages.join(' ');
+  } else {
+    banner.classList.add('hidden');
+    banner.textContent = '';
+  }
 }
 
 function el(tag, attrs = {}, children = []) {
@@ -623,7 +648,7 @@ function syncValidationOnly() {
   node.classList.toggle('hidden', errs.length === 0);
 
   if (typeof homebridge?.disableSaveButton === 'function') {
-    if (errs.length > 0) {
+    if (errs.length > 0 || state.syncError) {
       homebridge.disableSaveButton();
     } else {
       homebridge.enableSaveButton();
@@ -676,8 +701,16 @@ async function flushConfigDraftSync() {
   state.syncing = true;
   try {
     await persistToHomebridge(false);
+    if (state.syncError) {
+      state.syncError = null;
+      updateErrorBanner();
+    }
   } catch (_) {
-    // Avoid UI interruption; validation/save gating still protects final writes.
+    state.syncError = (_.message || 'unknown error');
+    updateErrorBanner();
+    if (typeof homebridge?.disableSaveButton === 'function') {
+      homebridge.disableSaveButton();
+    }
   } finally {
     state.syncing = false;
     if (state.pendingSync) {
@@ -688,7 +721,6 @@ async function flushConfigDraftSync() {
 }
 
 async function load() {
-  const banner = document.getElementById('errorBanner');
   try {
     if (typeof homebridge?.showSpinner === 'function') {
       homebridge.showSpinner();
@@ -702,6 +734,8 @@ async function load() {
     state.baseBlock = clone(existing);
     state.config = mergeLoadedConfig(existing);
     state.loaded = true;
+    state.loadError = null;
+    updateErrorBanner();
 
     renderStructural();
     await persistToHomebridge(false);
@@ -716,8 +750,8 @@ async function load() {
       });
     }
   } catch (error) {
-    banner.classList.remove('hidden');
-    banner.textContent = `Failed to load UI: ${error.message}`;
+    state.loadError = error.message;
+    updateErrorBanner();
   } finally {
     if (typeof homebridge?.hideSpinner === 'function') {
       homebridge.hideSpinner();

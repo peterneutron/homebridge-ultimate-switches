@@ -22,10 +22,12 @@ class TimerSwitchAccessory {
   configure() {
     this.switchService = this.accessory.getServiceById(this.api.hap.Service.Switch, 'timerSwitch')
       || this.accessory.addService(this.api.hap.Service.Switch, this.options.name, 'timerSwitch');
+    this.syncServiceName(this.switchService, this.options.name);
 
     if (this.options.emitMotionPulse) {
       this.motionService = this.accessory.getServiceById(this.api.hap.Service.MotionSensor, 'timerMotion')
         || this.accessory.addService(this.api.hap.Service.MotionSensor, `${this.options.name} Pulse`, 'timerMotion');
+      this.syncServiceName(this.motionService, `${this.options.name} Pulse`);
       this.motionService.updateCharacteristic(this.api.hap.Characteristic.MotionDetected, false);
     } else {
       const existingMotion = this.accessory.getServiceById(this.api.hap.Service.MotionSensor, 'timerMotion');
@@ -140,6 +142,20 @@ class TimerSwitchAccessory {
     this.stopped = true;
     this.clearCycleTimer();
     this.clearPulseTimer();
+  }
+
+  syncServiceName(service, name) {
+    if (!service || typeof name !== 'string' || name.trim() === '') {
+      return;
+    }
+    service.displayName = name;
+    if (typeof service.setCharacteristic === 'function') {
+      try {
+        service.setCharacteristic(this.api.hap.Characteristic.Name, name);
+      } catch (_error) {
+        // Optional characteristic; ignore.
+      }
+    }
   }
 }
 

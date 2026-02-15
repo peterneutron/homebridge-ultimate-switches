@@ -57,6 +57,7 @@ class SecuritySystemAccessory {
   configure() {
     this.securityService = this.accessory.getServiceById(this.api.hap.Service.SecuritySystem, 'securitySystem')
       || this.accessory.addService(this.api.hap.Service.SecuritySystem, this.options.name, 'securitySystem');
+    this.syncServiceName(this.securityService, this.options.name);
 
     this.restoreState();
 
@@ -144,8 +145,10 @@ class SecuritySystemAccessory {
   }
 
   ensureSwitchService(name, subtype) {
-    return this.accessory.getServiceById(this.api.hap.Service.Switch, subtype)
+    const service = this.accessory.getServiceById(this.api.hap.Service.Switch, subtype)
       || this.accessory.addService(this.api.hap.Service.Switch, name, subtype);
+    this.syncServiceName(service, name);
+    return service;
   }
 
   async setTargetState(value) {
@@ -201,6 +204,20 @@ class SecuritySystemAccessory {
 
   stop() {
     return undefined;
+  }
+
+  syncServiceName(service, name) {
+    if (!service || typeof name !== 'string' || name.trim() === '') {
+      return;
+    }
+    service.displayName = name;
+    if (typeof service.setCharacteristic === 'function') {
+      try {
+        service.setCharacteristic(this.api.hap.Characteristic.Name, name);
+      } catch (_error) {
+        // Optional characteristic; ignore.
+      }
+    }
   }
 }
 

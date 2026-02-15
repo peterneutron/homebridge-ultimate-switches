@@ -17,8 +17,9 @@ class ContextSensorAccessory {
   configure() {
     const custom = registerContextCharacteristics(this.api.hap);
 
-    this.service = this.accessory.getService(this.api.hap.Service.MotionSensor)
+    this.service = this.accessory.getServiceById(this.api.hap.Service.MotionSensor, 'contextSensor')
       || this.accessory.addService(this.api.hap.Service.MotionSensor, this.options.name, 'contextSensor');
+    this.syncServiceName(this.service, this.options.name);
 
     this.service.updateCharacteristic(this.api.hap.Characteristic.MotionDetected, false);
 
@@ -68,6 +69,20 @@ class ContextSensorAccessory {
 
   updateValue(key, characteristicType) {
     this.service.updateCharacteristic(characteristicType, this.currentValues[key]);
+  }
+
+  syncServiceName(service, name) {
+    if (!service || typeof name !== 'string' || name.trim() === '') {
+      return;
+    }
+    service.displayName = name;
+    if (typeof service.setCharacteristic === 'function') {
+      try {
+        service.setCharacteristic(this.api.hap.Characteristic.Name, name);
+      } catch (_error) {
+        // Optional characteristic; ignore.
+      }
+    }
   }
 
   stop() {

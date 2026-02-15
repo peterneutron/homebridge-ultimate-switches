@@ -33,6 +33,7 @@ function createMockApi() {
     constructor() {
       this.characteristics = new Map();
       this.values = new Map();
+      this.displayName = '';
     }
 
     getCharacteristic(type) {
@@ -44,6 +45,11 @@ function createMockApi() {
 
     updateCharacteristic(type, value) {
       this.values.set(type, value);
+    }
+
+    setCharacteristic(type, value) {
+      this.values.set(type, value);
+      return this;
     }
   }
 
@@ -60,7 +66,7 @@ function createMockAccessory(api) {
     UUID: 'acc-1',
     context: {},
     _service: null,
-    getService() {
+    getServiceById() {
       return this._service;
     },
     addService(serviceType) {

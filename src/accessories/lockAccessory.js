@@ -32,6 +32,7 @@ class LockAccessory {
   configure() {
     this.service = this.accessory.getServiceById(this.api.hap.Service.LockMechanism, 'virtualLock')
       || this.accessory.addService(this.api.hap.Service.LockMechanism, this.options.name, 'virtualLock');
+    this.syncServiceName(this.service, this.options.name);
 
     const cachedTarget = this.accessory.context.lockTargetState;
     if (typeof cachedTarget === 'number') {
@@ -66,6 +67,20 @@ class LockAccessory {
 
   stop() {
     return undefined;
+  }
+
+  syncServiceName(service, name) {
+    if (!service || typeof name !== 'string' || name.trim() === '') {
+      return;
+    }
+    service.displayName = name;
+    if (typeof service.setCharacteristic === 'function') {
+      try {
+        service.setCharacteristic(this.api.hap.Characteristic.Name, name);
+      } catch (_error) {
+        // Optional characteristic; ignore.
+      }
+    }
   }
 }
 
