@@ -1,7 +1,20 @@
 'use strict';
 
+function normalizeCalendarUrl(url) {
+  if (typeof url !== 'string') {
+    return url;
+  }
+
+  if (url.toLowerCase().startsWith('webcal://')) {
+    return `https://${url.slice('webcal://'.length)}`;
+  }
+
+  return url;
+}
+
 async function defaultFetch(url) {
-  const response = await fetch(url);
+  const normalizedUrl = normalizeCalendarUrl(url);
+  const response = await fetch(normalizedUrl);
   if (!response.ok) {
     throw new Error(`Calendar request failed: HTTP ${response.status}`);
   }
@@ -103,7 +116,7 @@ class CalendarProvider {
   }
 
   async listEvents(url) {
-    const text = await this.fetch(url);
+    const text = await this.fetch(normalizeCalendarUrl(url));
 
     if (this.nodeIcal) {
       const parsed = this.nodeIcal.parseICS(text);
@@ -116,4 +129,5 @@ class CalendarProvider {
 
 module.exports = {
   CalendarProvider,
+  normalizeCalendarUrl,
 };

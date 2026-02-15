@@ -17,5 +17,8 @@
     "calendar",
     "trigger"
   ],
+  "dependencies": {
+    "node-ical": "^0.25.1"
+  },
   "license": "MIT"
 }

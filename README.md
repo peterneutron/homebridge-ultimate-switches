@@ -43,6 +43,7 @@ Non-blocking behavior:
 ## Development
 
 ```bash
+npm install
 npm test
 ```
 
@@ -50,3 +51,6 @@ npm test
 
 - `legacy/` is intentionally not tracked by this repository.
 - Phase 1 and Phase 2 planning artifacts live in `docs/`.
+- Calendar parsing uses `node-ical` (installed as dependency).
+- `webcal://` URLs are supported and normalized to `https://` at runtime.
+- Manual smoke config example (including your public test calendar): `examples/manual-smoke.config.json`.
