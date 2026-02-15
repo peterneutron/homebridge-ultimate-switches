@@ -63,6 +63,7 @@ npm test
 - root calendar trigger accessory (`calendarTriggers[].name`)
 - watched event accessory (`calendar name + extracted regex label`)
 - notification accessory (`calendar name + event label + notification name`)
+- Calendar contact semantics: active calendar states are exposed as Contact Open (`CONTACT_NOT_DETECTED`) and inactive states as Contact Closed (`CONTACT_DETECTED`).
 - `debug: false` keeps logs minimal at info/warn/error level; set `debug: true` to enable verbose debug logs.
 - No runtime pruning: partially configured rows fail fast with explicit validation errors.
 - Custom UI creates rows only through explicit `Add ...` actions, so empty template rows are not auto-persisted.

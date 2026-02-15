@@ -49,8 +49,8 @@ class CalendarNotificationAccessory {
 
   toContactState(active) {
     return active
-      ? this.api.hap.Characteristic.ContactSensorState.CONTACT_DETECTED
-      : this.api.hap.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED;
+      ? this.api.hap.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED
+      : this.api.hap.Characteristic.ContactSensorState.CONTACT_DETECTED;
   }
 }
 

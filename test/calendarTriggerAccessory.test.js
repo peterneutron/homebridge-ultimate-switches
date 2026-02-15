@@ -5,6 +5,8 @@ const assert = require('node:assert/strict');
 
 const { CalendarEngine } = require('../src/calendarEngine');
 const { CalendarRootAccessory } = require('../src/accessories/calendarRootAccessory');
+const { CalendarEventAccessory } = require('../src/accessories/calendarEventAccessory');
+const { CalendarNotificationAccessory } = require('../src/accessories/calendarNotificationAccessory');
 
 function createFakeScheduler() {
   let nextId = 1;
@@ -233,4 +235,56 @@ test('calendar root accessory removes legacy child services on cached accessory 
   });
 
   assert.equal(legacyLeft, false);
+});
+
+test('calendar accessories expose active state as contact open semantics', () => {
+  const api = createMockApi();
+  const accessory = createMockAccessory();
+
+  const root = new CalendarRootAccessory(api, logger(), accessory, { name: 'Developer', updateButton: false }, {
+    getRootState() { return false; },
+    subscribeRoot() { return () => {}; },
+    refreshNow: async () => {},
+  });
+  const event = new CalendarEventAccessory(api, logger(), accessory, {
+    name: 'Developer Event',
+    eventKey: 'calendarEvent:Developer:^Meeting$',
+  }, {
+    getEventState() { return { active: false, progress: 0.0001 }; },
+    subscribeEvent(_k, _cb) { return () => {}; },
+  });
+  const notification = new CalendarNotificationAccessory(api, logger(), accessory, {
+    name: 'Developer Notification',
+    notificationKey: 'calendarNotification:Developer:^Meeting$:LOL',
+  }, {
+    getNotificationState() { return false; },
+    subscribeNotification(_k, _cb) { return () => {}; },
+  });
+
+  assert.equal(
+    root.toContactState(true),
+    api.hap.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED,
+  );
+  assert.equal(
+    root.toContactState(false),
+    api.hap.Characteristic.ContactSensorState.CONTACT_DETECTED,
+  );
+
+  assert.equal(
+    event.toContactState(true),
+    api.hap.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED,
+  );
+  assert.equal(
+    event.toContactState(false),
+    api.hap.Characteristic.ContactSensorState.CONTACT_DETECTED,
+  );
+
+  assert.equal(
+    notification.toContactState(true),
+    api.hap.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED,
+  );
+  assert.equal(
+    notification.toContactState(false),
+    api.hap.Characteristic.ContactSensorState.CONTACT_DETECTED,
+  );
 });
