@@ -249,11 +249,13 @@
             },
             "triggerOnAnyEvent": {
               "title": "Trigger on Any Event",
+              "description": "When enabled, root calendar trigger follows any active calendar event. When disabled, at least one watched event pattern is required.",
               "type": "boolean",
               "default": false
             },
             "events": {
               "title": "Watched Events",
+              "description": "Regex event patterns to watch. Required when Trigger on Any Event is disabled.",
               "type": "array",
               "items": {
                 "title": "Event",
@@ -297,7 +299,25 @@
               },
               "default": []
             }
-          }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "triggerOnAnyEvent": {
+                    "const": false
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "events": {
+                    "minItems": 1
+                  }
+                }
+              }
+            }
+          ]
         },
         "default": []
       },
@@ -357,83 +377,5 @@
         }
       }
     }
-  },
-  "form": [
-    "name",
-    "debug",
-    {
-      "key": "commandSwitches",
-      "type": "array",
-      "items": [
-        "commandSwitches[].name",
-        "commandSwitches[].onCommand",
-        "commandSwitches[].offCommand",
-        "commandSwitches[].stateCommand",
-        "commandSwitches[].polling",
-        "commandSwitches[].pollIntervalSeconds",
-        "commandSwitches[].commandTimeoutSeconds"
-      ]
-    },
-    {
-      "key": "switches",
-      "type": "array",
-      "items": [
-        "switches[].name",
-        "switches[].defaultOn",
-        "switches[].persistState"
-      ]
-    },
-    {
-      "key": "timers",
-      "type": "array",
-      "items": [
-        "timers[].name",
-        "timers[].periodSeconds",
-        "timers[].autoOff",
-        "timers[].emitMotionPulse",
-        "timers[].persistState"
-      ]
-    },
-    {
-      "key": "locks",
-      "type": "array",
-      "items": [
-        "locks[].name",
-        "locks[].defaultState",
-        "locks[].persistState"
-      ]
-    },
-    {
-      "key": "securitySystems",
-      "type": "array",
-      "items": [
-        "securitySystems[].name",
-        "securitySystems[].defaultState",
-        "securitySystems[].zones",
-        "securitySystems[].armAwayButtonLabel",
-        "securitySystems[].armStayButtonLabel",
-        "securitySystems[].armNightButtonLabel",
-        "securitySystems[].persistState"
-      ]
-    },
-    {
-      "key": "calendarTriggers",
-      "type": "array",
-      "items": [
-        "calendarTriggers[].name",
-        "calendarTriggers[].url",
-        "calendarTriggers[].updateIntervalMinutes",
-        "calendarTriggers[].requestTimeoutSeconds",
-        "calendarTriggers[].updateButton",
-        "calendarTriggers[].triggerOnUpdates",
-        "calendarTriggers[].triggerOnAnyEvent",
-        "calendarTriggers[].events"
-      ]
-    },
-    "contextSensor.enabled",
-    "contextSensor.name",
-    "contextSensor.latitude",
-    "contextSensor.longitude",
-    "contextSensor.refreshIntervalSeconds"
-  ]
+  }
 }

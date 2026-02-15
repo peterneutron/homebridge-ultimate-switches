@@ -35,6 +35,7 @@ test('normalizeConfig clamps timer and command numeric ranges', () => {
     calendarTriggers: [{
       name: 'Cal',
       url: 'https://example.invalid/ics',
+      triggerOnAnyEvent: true,
       requestTimeoutSeconds: 999,
     }],
   });
@@ -194,6 +195,7 @@ test('normalizeConfig prunes nested calendar placeholders and fails partial nest
     calendarTriggers: [{
       name: 'Cal',
       url: 'https://example.invalid/test.ics',
+      triggerOnAnyEvent: true,
       events: [{
         triggerOnUpdates: true,
       }],
@@ -208,6 +210,7 @@ test('normalizeConfig prunes nested calendar placeholders and fails partial nest
     calendarTriggers: [{
       name: 'Cal',
       url: 'https://example.invalid/test.ics',
+      triggerOnAnyEvent: true,
       events: [{
         notifications: [{
           name: '',
@@ -224,6 +227,7 @@ test('normalizeConfig prunes nested calendar placeholders and fails partial nest
     calendarTriggers: [{
       name: 'Cal',
       url: 'https://example.invalid/test.ics',
+      triggerOnAnyEvent: true,
       events: [{
         name: 'Event',
         notifications: [{
@@ -249,4 +253,47 @@ test('normalizeConfig prunes nested calendar placeholders and fails partial nest
       }],
     }],
   }), ValidationError);
+});
+
+test('normalizeConfig requires watched events when triggerOnAnyEvent is false', () => {
+  assert.throws(() => normalizeConfig({
+    calendarTriggers: [{
+      name: 'Cal',
+      url: 'https://example.invalid/test.ics',
+      triggerOnAnyEvent: false,
+      events: [],
+    }],
+  }), ValidationError);
+});
+
+test('normalizeConfig accepts watched events when triggerOnAnyEvent is false', () => {
+  const config = normalizeConfig({
+    calendarTriggers: [{
+      name: 'Cal',
+      url: 'https://example.invalid/test.ics',
+      triggerOnAnyEvent: false,
+      events: [{
+        name: '^Meeting',
+      }],
+    }],
+  });
+
+  assert.equal(config.calendarTriggers.length, 1);
+  assert.equal(config.calendarTriggers[0].events.length, 1);
+  assert.equal(config.calendarTriggers[0].events[0].name, '^Meeting');
+});
+
+test('normalizeConfig allows empty watched events when triggerOnAnyEvent is true', () => {
+  const config = normalizeConfig({
+    calendarTriggers: [{
+      name: 'Cal',
+      url: 'https://example.invalid/test.ics',
+      triggerOnAnyEvent: true,
+      events: [],
+    }],
+  });
+
+  assert.equal(config.calendarTriggers.length, 1);
+  assert.equal(config.calendarTriggers[0].triggerOnAnyEvent, true);
+  assert.equal(config.calendarTriggers[0].events.length, 0);
 });

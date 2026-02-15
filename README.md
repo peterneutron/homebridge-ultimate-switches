@@ -55,6 +55,8 @@ npm test
 - Calendar parsing uses `node-ical` (installed as dependency).
 - `webcal://` URLs are supported and normalized to `https://` at runtime.
 - Calendar fetches are timeout-bounded (`calendarTriggers[].requestTimeoutSeconds`).
+- Calendar trigger config UI is schema-driven; nested watched events and notifications are edited via auto-rendered nested array controls.
+- When `calendarTriggers[].triggerOnAnyEvent` is `false`, at least one `calendarTriggers[].events[]` regex pattern is required.
 - `debug: false` keeps logs minimal at info/warn/error level; set `debug: true` to enable verbose debug logs.
 - Config placeholder hardening: blank Config UI rows are auto-pruned at startup and one warning is logged per affected group.
 - Partially configured rows still fail fast with validation errors.

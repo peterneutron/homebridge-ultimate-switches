@@ -369,7 +369,7 @@ function normalizeCalendarTriggers(raw, pruneCounters) {
       throw new ValidationError(`calendarTriggers[${index}].url is required`);
     }
 
-    items.push({
+    const normalized = {
       name: item.name.trim(),
       url: item.url.trim(),
       updateIntervalMinutes: clampNumber(item.updateIntervalMinutes, 60, 1, 1440),
@@ -378,7 +378,13 @@ function normalizeCalendarTriggers(raw, pruneCounters) {
       triggerOnUpdates: toBoolean(item.triggerOnUpdates, true),
       triggerOnAnyEvent: toBoolean(item.triggerOnAnyEvent, false),
       events: normalizeCalendarEvents(item.events, `calendarTriggers[${index}].events`, pruneCounters),
-    });
+    };
+
+    if (normalized.triggerOnAnyEvent === false && normalized.events.length === 0) {
+      throw new ValidationError(`calendarTriggers[${index}] requires at least one events entry when triggerOnAnyEvent is false`);
+    }
+
+    items.push(normalized);
   });
 
   ensureUniqueNames(items, 'calendarTriggers');
