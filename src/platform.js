@@ -4,10 +4,11 @@ const { normalizeConfig, ValidationError } = require('./config');
 const { AccessoryRegistry } = require('./registry');
 const { OperationCoordinator } = require('./execution');
 const { BasicSwitchAccessory } = require('./accessories/basicSwitchAccessory');
+const { CommandSwitchAccessory } = require('./accessories/commandSwitchAccessory');
 const { ContextSensorAccessory } = require('./accessories/contextSensorAccessory');
 const { PLATFORM_NAME, PLUGIN_NAME } = require('./settings');
 
-const SUPPORTED_KINDS = new Set(['switch', 'contextSensor']);
+const SUPPORTED_KINDS = new Set(['commandSwitch', 'switch', 'contextSensor']);
 
 class UltimateSwitchesPlatform {
   constructor(log, config, api) {
@@ -105,6 +106,10 @@ class UltimateSwitchesPlatform {
   }
 
   createAccessoryInstance(descriptor, accessory) {
+    if (descriptor.kind === 'commandSwitch') {
+      return new CommandSwitchAccessory(this.api, this.log, accessory, descriptor.config, this.operationCoordinator);
+    }
+
     if (descriptor.kind === 'switch') {
       return new BasicSwitchAccessory(this.api, this.log, accessory, descriptor.config, this.operationCoordinator);
     }
