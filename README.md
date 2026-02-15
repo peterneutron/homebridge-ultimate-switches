@@ -59,6 +59,10 @@ npm test
 - Calendar fetches are timeout-bounded (`calendarTriggers[].requestTimeoutSeconds`).
 - Calendar trigger config UI is schema-driven; nested watched events and notifications are edited via auto-rendered nested array controls.
 - When `calendarTriggers[].triggerOnAnyEvent` is `false`, at least one `calendarTriggers[].events[]` regex pattern is required.
+- Calendar triggers are exposed as separate accessories for reliable HomeKit naming:
+- root calendar trigger accessory (`calendarTriggers[].name`)
+- watched event accessory (`calendar name + extracted regex label`)
+- notification accessory (`calendar name + event label + notification name`)
 - `debug: false` keeps logs minimal at info/warn/error level; set `debug: true` to enable verbose debug logs.
 - No runtime pruning: partially configured rows fail fast with explicit validation errors.
 - Custom UI creates rows only through explicit `Add ...` actions, so empty template rows are not auto-persisted.

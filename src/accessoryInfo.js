@@ -8,7 +8,9 @@ const MODEL_BY_KIND = {
   timer: 'Timer Switch',
   lock: 'Virtual Lock',
   security: 'Security System',
-  calendar: 'Calendar Trigger',
+  calendarRoot: 'Calendar Trigger',
+  calendarEvent: 'Calendar Event',
+  calendarNotification: 'Calendar Notification',
   contextSensor: 'Context Sensor',
 };
 

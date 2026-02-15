@@ -1,5 +1,13 @@
 'use strict';
 
+const {
+  buildCalendarRootKey,
+  buildCalendarEventKey,
+  buildCalendarNotificationKey,
+  buildCalendarEventDisplayName,
+  buildCalendarNotificationDisplayName,
+} = require('./calendarKeys');
+
 function buildDescriptors(config) {
   const descriptors = [];
 
@@ -24,7 +32,37 @@ function buildDescriptors(config) {
   });
 
   config.calendarTriggers.forEach((item) => {
-    descriptors.push({ kind: 'calendar', name: item.name, key: `calendar:${item.name}`, config: item });
+    descriptors.push({
+      kind: 'calendarRoot',
+      name: item.name,
+      key: buildCalendarRootKey(item.name),
+      config: item,
+    });
+
+    item.events.forEach((event) => {
+      descriptors.push({
+        kind: 'calendarEvent',
+        name: buildCalendarEventDisplayName(item.name, event.name),
+        key: buildCalendarEventKey(item.name, event.name),
+        config: {
+          calendar: item,
+          event,
+        },
+      });
+
+      event.notifications.forEach((notification) => {
+        descriptors.push({
+          kind: 'calendarNotification',
+          name: buildCalendarNotificationDisplayName(item.name, event.name, notification.name),
+          key: buildCalendarNotificationKey(item.name, event.name, notification.name),
+          config: {
+            calendar: item,
+            event,
+            notification,
+          },
+        });
+      });
+    });
   });
 
   if (config.contextSensor.enabled) {

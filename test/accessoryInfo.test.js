@@ -7,6 +7,9 @@ const { applyAccessoryInformation, modelForKind, serialFromUuid } = require('../
 
 test('modelForKind returns human-readable labels', () => {
   assert.equal(modelForKind('commandSwitch'), 'Command Switch');
+  assert.equal(modelForKind('calendarRoot'), 'Calendar Trigger');
+  assert.equal(modelForKind('calendarEvent'), 'Calendar Event');
+  assert.equal(modelForKind('calendarNotification'), 'Calendar Notification');
   assert.equal(modelForKind('contextSensor'), 'Context Sensor');
   assert.equal(modelForKind('unknown-kind'), 'Accessory');
 });

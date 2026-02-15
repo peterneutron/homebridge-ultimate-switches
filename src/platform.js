@@ -2,10 +2,13 @@
 
 const { normalizeConfig, ValidationError } = require('./config');
 const { AccessoryRegistry } = require('./registry');
+const { CalendarEngine } = require('./calendarEngine');
 const { OperationCoordinator } = require('./execution');
 const { createLogger } = require('./logger');
 const { BasicSwitchAccessory } = require('./accessories/basicSwitchAccessory');
-const { CalendarTriggerAccessory } = require('./accessories/calendarTriggerAccessory');
+const { CalendarRootAccessory } = require('./accessories/calendarRootAccessory');
+const { CalendarEventAccessory } = require('./accessories/calendarEventAccessory');
+const { CalendarNotificationAccessory } = require('./accessories/calendarNotificationAccessory');
 const { CommandSwitchAccessory } = require('./accessories/commandSwitchAccessory');
 const { ContextSensorAccessory } = require('./accessories/contextSensorAccessory');
 const { LockAccessory } = require('./accessories/lockAccessory');
@@ -14,7 +17,17 @@ const { TimerSwitchAccessory } = require('./accessories/timerSwitchAccessory');
 const { applyAccessoryInformation } = require('./accessoryInfo');
 const { PLATFORM_NAME, PLUGIN_NAME } = require('./settings');
 
-const SUPPORTED_KINDS = new Set(['commandSwitch', 'switch', 'timer', 'lock', 'security', 'calendar', 'contextSensor']);
+const SUPPORTED_KINDS = new Set([
+  'commandSwitch',
+  'switch',
+  'timer',
+  'lock',
+  'security',
+  'calendarRoot',
+  'calendarEvent',
+  'calendarNotification',
+  'contextSensor',
+]);
 
 class UltimateSwitchesPlatform {
   constructor(log, config, api) {
@@ -22,6 +35,7 @@ class UltimateSwitchesPlatform {
     this.api = api;
     this.cachedAccessories = new Map();
     this.liveAccessories = new Map();
+    this.calendarEngines = new Map();
     this.operationCoordinator = new OperationCoordinator();
 
     try {
@@ -46,6 +60,7 @@ class UltimateSwitchesPlatform {
 
       this.api.on('shutdown', () => {
         this.liveAccessories.forEach((instance) => instance.stop?.());
+        this.calendarEngines.forEach((engine) => engine.stop());
       });
     }
   }
@@ -138,15 +153,49 @@ class UltimateSwitchesPlatform {
       return new SecuritySystemAccessory(this.api, this.log, accessory, descriptor.config, this.operationCoordinator);
     }
 
-    if (descriptor.kind === 'calendar') {
-      return new CalendarTriggerAccessory(this.api, this.log, accessory, descriptor.config, this.operationCoordinator);
+    if (descriptor.kind === 'calendarRoot') {
+      const engine = this.getCalendarEngine(descriptor.config);
+      return new CalendarRootAccessory(this.api, this.log, accessory, descriptor.config, engine);
+    }
+
+    if (descriptor.kind === 'calendarEvent') {
+      const engine = this.getCalendarEngine(descriptor.config.calendar);
+      return new CalendarEventAccessory(
+        this.api,
+        this.log,
+        accessory,
+        {
+          name: descriptor.name,
+          eventKey: descriptor.key,
+        },
+        engine,
+      );
+    }
+
+    if (descriptor.kind === 'calendarNotification') {
+      const engine = this.getCalendarEngine(descriptor.config.calendar);
+      return new CalendarNotificationAccessory(
+        this.api,
+        this.log,
+        accessory,
+        {
+          name: descriptor.name,
+          notificationKey: descriptor.key,
+        },
+        engine,
+      );
     }
 
     return null;
   }
 
   resolveCategory(kind) {
-    if (kind === 'contextSensor') {
+    if (
+      kind === 'contextSensor'
+      || kind === 'calendarRoot'
+      || kind === 'calendarEvent'
+      || kind === 'calendarNotification'
+    ) {
       return this.api.hap.Accessory.Categories.SENSOR;
     }
 
@@ -159,6 +208,14 @@ class UltimateSwitchesPlatform {
     }
 
     return this.api.hap.Accessory.Categories.SWITCH;
+  }
+
+  getCalendarEngine(calendarConfig) {
+    const key = calendarConfig.name;
+    if (!this.calendarEngines.has(key)) {
+      this.calendarEngines.set(key, new CalendarEngine(this.log, calendarConfig));
+    }
+    return this.calendarEngines.get(key);
   }
 }
 
