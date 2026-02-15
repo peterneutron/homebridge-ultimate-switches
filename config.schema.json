@@ -64,18 +64,6 @@
               "default": 2,
               "minimum": 1,
               "maximum": 120
-            },
-            "manufacturer": {
-              "title": "Manufacturer",
-              "type": "string"
-            },
-            "model": {
-              "title": "Model",
-              "type": "string"
-            },
-            "serialNumber": {
-              "title": "Serial Number",
-              "type": "string"
             }
           }
         },
@@ -391,10 +379,7 @@
         "commandSwitches[].stateCommand",
         "commandSwitches[].polling",
         "commandSwitches[].pollIntervalSeconds",
-        "commandSwitches[].commandTimeoutSeconds",
-        "commandSwitches[].manufacturer",
-        "commandSwitches[].model",
-        "commandSwitches[].serialNumber"
+        "commandSwitches[].commandTimeoutSeconds"
       ]
     },
     {

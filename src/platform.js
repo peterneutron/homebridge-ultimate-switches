@@ -11,6 +11,7 @@ const { ContextSensorAccessory } = require('./accessories/contextSensorAccessory
 const { LockAccessory } = require('./accessories/lockAccessory');
 const { SecuritySystemAccessory } = require('./accessories/securitySystemAccessory');
 const { TimerSwitchAccessory } = require('./accessories/timerSwitchAccessory');
+const { applyAccessoryInformation } = require('./accessoryInfo');
 const { PLATFORM_NAME, PLUGIN_NAME } = require('./settings');
 
 const SUPPORTED_KINDS = new Set(['commandSwitch', 'switch', 'timer', 'lock', 'security', 'calendar', 'contextSensor']);
@@ -109,6 +110,8 @@ class UltimateSwitchesPlatform {
         this.cachedAccessories.delete(uuid);
         this.log.debug('[Init] Reused cached accessory: %s (%s)', descriptor.name, descriptor.kind);
       }
+
+      applyAccessoryInformation(this.api, accessory, descriptor.kind);
 
       const instance = this.createAccessoryInstance(descriptor, accessory);
       if (!instance) {

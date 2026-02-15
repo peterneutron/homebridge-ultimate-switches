@@ -160,6 +160,35 @@ test('normalizeConfig throws on partially configured rows', () => {
   }), ValidationError);
 });
 
+test('normalizeConfig rejects legacy command switch metadata keys', () => {
+  assert.throws(() => normalizeConfig({
+    commandSwitches: [{
+      name: 'Cmd',
+      onCommand: 'echo on',
+      offCommand: 'echo off',
+      manufacturer: 'Legacy',
+    }],
+  }), ValidationError);
+
+  assert.throws(() => normalizeConfig({
+    commandSwitches: [{
+      name: 'Cmd',
+      onCommand: 'echo on',
+      offCommand: 'echo off',
+      model: 'Legacy',
+    }],
+  }), ValidationError);
+
+  assert.throws(() => normalizeConfig({
+    commandSwitches: [{
+      name: 'Cmd',
+      onCommand: 'echo on',
+      offCommand: 'echo off',
+      serialNumber: 'Legacy',
+    }],
+  }), ValidationError);
+});
+
 test('normalizeConfig prunes nested calendar placeholders and fails partial nested rows', () => {
   const config = normalizeConfig({
     calendarTriggers: [{

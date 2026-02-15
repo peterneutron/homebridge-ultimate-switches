@@ -70,9 +70,6 @@ function isBlankCommandSwitchRow(item) {
     && !isNonEmptyString(item?.onCommand)
     && !isNonEmptyString(item?.offCommand)
     && !isNonEmptyString(item?.stateCommand)
-    && !isNonEmptyString(item?.manufacturer)
-    && !isNonEmptyString(item?.model)
-    && !isNonEmptyString(item?.serialNumber)
     && isDefaultBoolean(item?.polling, false)
     && isDefaultNumber(item?.pollIntervalSeconds, 5)
     && isDefaultNumber(item?.commandTimeoutSeconds, 2);
@@ -166,6 +163,15 @@ function normalizeCommandSwitches(raw, pruneCounters) {
     if (!isNonEmptyString(item?.offCommand)) {
       throw new ValidationError(`commandSwitches[${index}].offCommand is required`);
     }
+    if (Object.hasOwn(item || {}, 'manufacturer')) {
+      throw new ValidationError(`commandSwitches[${index}].manufacturer is no longer supported`);
+    }
+    if (Object.hasOwn(item || {}, 'model')) {
+      throw new ValidationError(`commandSwitches[${index}].model is no longer supported`);
+    }
+    if (Object.hasOwn(item || {}, 'serialNumber')) {
+      throw new ValidationError(`commandSwitches[${index}].serialNumber is no longer supported`);
+    }
 
     const normalized = {
       name: item.name.trim(),
@@ -175,9 +181,6 @@ function normalizeCommandSwitches(raw, pruneCounters) {
       polling: toBoolean(item.polling, false),
       pollIntervalSeconds: clampNumber(item.pollIntervalSeconds, 5, 1, 300),
       commandTimeoutSeconds: clampNumber(item.commandTimeoutSeconds, 2, 1, 120),
-      manufacturer: normalizeString(item.manufacturer, undefined),
-      model: normalizeString(item.model, undefined),
-      serialNumber: normalizeString(item.serialNumber, undefined),
     };
 
     if (normalized.polling && !normalized.stateCommand) {

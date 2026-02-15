@@ -59,4 +59,9 @@ npm test
 - Config placeholder hardening: blank Config UI rows are auto-pruned at startup and one warning is logged per affected group.
 - Partially configured rows still fail fast with validation errors.
 - `contextSensor.latitude` and `contextSensor.longitude` are required only when `contextSensor.enabled` is `true`.
+- Accessory metadata is auto-generated for all accessory kinds:
+- `Manufacturer`: `Ultimate Switches`
+- `Model`: type label (for example `Command Switch`, `Timer Switch`, `Calendar Trigger`)
+- `SerialNumber`: deterministic UUID-derived value (`US-...`)
+- Legacy command-switch metadata keys (`manufacturer`, `model`, `serialNumber`) are removed and now invalid.
 - Manual smoke config example (including your public test calendar): `examples/manual-smoke.config.json`.
