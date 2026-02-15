@@ -1,0 +1,427 @@
+{
+  "pluginAlias": "UltimateSwitches",
+  "pluginType": "platform",
+  "singular": true,
+  "strictValidation": false,
+  "headerDisplay": "Unified automation switches and triggers for Homebridge (HB1/HB2).",
+  "footerDisplay": "Phase 2 draft schema: includes core v1 features and context sensor.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "default": "Ultimate Switches"
+      },
+      "debug": {
+        "title": "Debug Logging",
+        "type": "boolean",
+        "default": false
+      },
+      "commandSwitches": {
+        "title": "Command Switches",
+        "type": "array",
+        "items": {
+          "title": "Command Switch",
+          "type": "object",
+          "required": ["name", "onCommand", "offCommand"],
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "onCommand": {
+              "title": "On Command",
+              "type": "string"
+            },
+            "offCommand": {
+              "title": "Off Command",
+              "type": "string"
+            },
+            "stateCommand": {
+              "title": "State Command",
+              "type": "string"
+            },
+            "polling": {
+              "title": "Enable Polling",
+              "type": "boolean",
+              "default": false
+            },
+            "pollIntervalSeconds": {
+              "title": "Poll Interval (seconds)",
+              "type": "integer",
+              "default": 5,
+              "minimum": 1,
+              "maximum": 300
+            },
+            "commandTimeoutSeconds": {
+              "title": "Command Timeout (seconds)",
+              "type": "integer",
+              "default": 2,
+              "minimum": 1,
+              "maximum": 120
+            },
+            "manufacturer": {
+              "title": "Manufacturer",
+              "type": "string"
+            },
+            "model": {
+              "title": "Model",
+              "type": "string"
+            },
+            "serialNumber": {
+              "title": "Serial Number",
+              "type": "string"
+            }
+          }
+        },
+        "default": []
+      },
+      "switches": {
+        "title": "Basic Switches",
+        "type": "array",
+        "items": {
+          "title": "Basic Switch",
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "defaultOn": {
+              "title": "Default On",
+              "type": "boolean",
+              "default": false
+            },
+            "persistState": {
+              "title": "Persist State",
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "default": []
+      },
+      "timers": {
+        "title": "Timer / Momentary Switches",
+        "type": "array",
+        "items": {
+          "title": "Timer Switch",
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "periodSeconds": {
+              "title": "Period (seconds)",
+              "type": "integer",
+              "default": 60,
+              "minimum": 1,
+              "maximum": 86400
+            },
+            "autoOff": {
+              "title": "Auto Off",
+              "type": "boolean",
+              "default": true
+            },
+            "emitMotionPulse": {
+              "title": "Emit Motion Pulse",
+              "type": "boolean",
+              "default": true
+            },
+            "persistState": {
+              "title": "Persist State",
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "default": []
+      },
+      "locks": {
+        "title": "Virtual Locks",
+        "type": "array",
+        "items": {
+          "title": "Lock",
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "defaultState": {
+              "title": "Default State",
+              "type": "string",
+              "default": "unlocked",
+              "enum": ["locked", "unlocked"]
+            },
+            "persistState": {
+              "title": "Persist State",
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "default": []
+      },
+      "securitySystems": {
+        "title": "Virtual Security Systems",
+        "type": "array",
+        "items": {
+          "title": "Security System",
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "defaultState": {
+              "title": "Default State",
+              "type": "string",
+              "default": "unarmed",
+              "enum": ["unarmed", "armed-stay", "armed-away", "armed-night"]
+            },
+            "zones": {
+              "title": "Zones",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": ["Alarm"]
+            },
+            "armAwayButtonLabel": {
+              "title": "Arm Away Button Label",
+              "type": "string"
+            },
+            "armStayButtonLabel": {
+              "title": "Arm Stay Button Label",
+              "type": "string"
+            },
+            "armNightButtonLabel": {
+              "title": "Arm Night Button Label",
+              "type": "string"
+            },
+            "persistState": {
+              "title": "Persist State",
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "default": []
+      },
+      "calendarTriggers": {
+        "title": "Calendar Triggers",
+        "type": "array",
+        "items": {
+          "title": "Calendar",
+          "type": "object",
+          "required": ["name", "url"],
+          "properties": {
+            "name": {
+              "title": "Calendar Name",
+              "type": "string"
+            },
+            "url": {
+              "title": "Calendar URL",
+              "type": "string"
+            },
+            "updateIntervalMinutes": {
+              "title": "Update Interval (minutes)",
+              "type": "integer",
+              "default": 60,
+              "minimum": 1,
+              "maximum": 1440
+            },
+            "updateButton": {
+              "title": "Show Update Button",
+              "type": "boolean",
+              "default": true
+            },
+            "triggerOnUpdates": {
+              "title": "Trigger on Updates",
+              "type": "boolean",
+              "default": true
+            },
+            "triggerOnAnyEvent": {
+              "title": "Trigger on Any Event",
+              "type": "boolean",
+              "default": false
+            },
+            "events": {
+              "title": "Watched Events",
+              "type": "array",
+              "items": {
+                "title": "Event",
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": {
+                    "title": "Event Name Pattern",
+                    "type": "string"
+                  },
+                  "triggerOnUpdates": {
+                    "title": "Trigger on Progress Updates",
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "notifications": {
+                    "title": "Notifications",
+                    "type": "array",
+                    "items": {
+                      "title": "Notification",
+                      "type": "object",
+                      "required": ["name"],
+                      "properties": {
+                        "name": {
+                          "title": "Notification Name",
+                          "type": "string"
+                        },
+                        "startOffsetMinutes": {
+                          "title": "Start Offset (minutes)",
+                          "type": "integer"
+                        },
+                        "endOffsetMinutes": {
+                          "title": "End Offset (minutes)",
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "default": []
+                  }
+                }
+              },
+              "default": []
+            }
+          }
+        },
+        "default": []
+      },
+      "contextSensor": {
+        "title": "Context Sensor",
+        "type": "object",
+        "required": ["enabled", "name", "latitude", "longitude"],
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean",
+            "default": false
+          },
+          "name": {
+            "title": "Accessory Name",
+            "type": "string",
+            "default": "Home Context"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "refreshIntervalSeconds": {
+            "title": "Refresh Interval (seconds)",
+            "type": "integer",
+            "default": 60,
+            "minimum": 30,
+            "maximum": 3600
+          }
+        },
+        "default": {
+          "enabled": false,
+          "name": "Home Context"
+        }
+      }
+    }
+  },
+  "form": [
+    "name",
+    "debug",
+    {
+      "key": "commandSwitches",
+      "type": "array",
+      "items": [
+        "commandSwitches[].name",
+        "commandSwitches[].onCommand",
+        "commandSwitches[].offCommand",
+        "commandSwitches[].stateCommand",
+        "commandSwitches[].polling",
+        "commandSwitches[].pollIntervalSeconds",
+        "commandSwitches[].commandTimeoutSeconds",
+        "commandSwitches[].manufacturer",
+        "commandSwitches[].model",
+        "commandSwitches[].serialNumber"
+      ]
+    },
+    {
+      "key": "switches",
+      "type": "array",
+      "items": [
+        "switches[].name",
+        "switches[].defaultOn",
+        "switches[].persistState"
+      ]
+    },
+    {
+      "key": "timers",
+      "type": "array",
+      "items": [
+        "timers[].name",
+        "timers[].periodSeconds",
+        "timers[].autoOff",
+        "timers[].emitMotionPulse",
+        "timers[].persistState"
+      ]
+    },
+    {
+      "key": "locks",
+      "type": "array",
+      "items": [
+        "locks[].name",
+        "locks[].defaultState",
+        "locks[].persistState"
+      ]
+    },
+    {
+      "key": "securitySystems",
+      "type": "array",
+      "items": [
+        "securitySystems[].name",
+        "securitySystems[].defaultState",
+        "securitySystems[].zones",
+        "securitySystems[].armAwayButtonLabel",
+        "securitySystems[].armStayButtonLabel",
+        "securitySystems[].armNightButtonLabel",
+        "securitySystems[].persistState"
+      ]
+    },
+    {
+      "key": "calendarTriggers",
+      "type": "array",
+      "items": [
+        "calendarTriggers[].name",
+        "calendarTriggers[].url",
+        "calendarTriggers[].updateIntervalMinutes",
+        "calendarTriggers[].updateButton",
+        "calendarTriggers[].triggerOnUpdates",
+        "calendarTriggers[].triggerOnAnyEvent",
+        "calendarTriggers[].events"
+      ]
+    },
+    "contextSensor.enabled",
+    "contextSensor.name",
+    "contextSensor.latitude",
+    "contextSensor.longitude",
+    "contextSensor.refreshIntervalSeconds"
+  ]
+}
