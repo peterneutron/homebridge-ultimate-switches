@@ -4,6 +4,9 @@ const PLATFORM = 'UltimateSwitches';
 
 const state = {
   loaded: false,
+  syncing: false,
+  pendingSync: false,
+  syncTimer: undefined,
   baseBlock: {},
   config: {
     name: 'Ultimate Switches',
@@ -627,6 +630,8 @@ function syncValidationOnly() {
     }
   }
 
+  queueConfigDraftSync();
+
   return errs;
 }
 
@@ -644,6 +649,41 @@ async function persistToHomebridge(saveNow = false) {
 
   if (saveNow && typeof homebridge?.savePluginConfig === 'function') {
     await homebridge.savePluginConfig();
+  }
+}
+
+function queueConfigDraftSync() {
+  if (!state.loaded || typeof homebridge?.updatePluginConfig !== 'function') {
+    return;
+  }
+
+  if (state.syncTimer) {
+    clearTimeout(state.syncTimer);
+  }
+
+  state.syncTimer = setTimeout(() => {
+    state.syncTimer = undefined;
+    void flushConfigDraftSync();
+  }, 200);
+}
+
+async function flushConfigDraftSync() {
+  if (state.syncing) {
+    state.pendingSync = true;
+    return;
+  }
+
+  state.syncing = true;
+  try {
+    await persistToHomebridge(false);
+  } catch (_) {
+    // Avoid UI interruption; validation/save gating still protects final writes.
+  } finally {
+    state.syncing = false;
+    if (state.pendingSync) {
+      state.pendingSync = false;
+      queueConfigDraftSync();
+    }
   }
 }
 
