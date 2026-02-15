@@ -175,3 +175,124 @@ test('stop clears polling timer', () => {
   instance.stop();
   assert.equal(instance.pollTimer, null);
 });
+
+test('setState off without offCommand does not execute shell', async () => {
+  const api = createMockApi();
+  const accessory = createMockAccessory(api);
+  const calls = [];
+
+  const instance = new CommandSwitchAccessory(
+    api,
+    createLogger(),
+    accessory,
+    {
+      name: 'Cmd',
+      onCommand: 'on-cmd',
+      polling: false,
+      pollIntervalSeconds: 5,
+      commandTimeoutSeconds: 5,
+    },
+    new OperationCoordinator(),
+    async (command) => { calls.push(command); },
+  );
+
+  instance.configure();
+  await instance.setState(true);
+  await instance.setState(false);
+
+  assert.deepEqual(calls, ['on-cmd']);
+  assert.equal(instance.state, false);
+});
+
+test('autoOff without offCommand flips state off after delay', async () => {
+  const api = createMockApi();
+  const accessory = createMockAccessory(api);
+  const tasks = new Map();
+  let taskId = 1;
+
+  const timers = {
+    setTimeout(fn) {
+      const id = taskId++;
+      tasks.set(id, fn);
+      return id;
+    },
+    clearTimeout(id) {
+      tasks.delete(id);
+    },
+  };
+
+  const instance = new CommandSwitchAccessory(
+    api,
+    createLogger(),
+    accessory,
+    {
+      name: 'Cmd',
+      onCommand: 'on-cmd',
+      polling: false,
+      pollIntervalSeconds: 5,
+      commandTimeoutSeconds: 5,
+      autoOffSeconds: 5,
+    },
+    new OperationCoordinator(),
+    async () => {},
+    timers,
+  );
+
+  instance.configure();
+  await instance.setState(true);
+  assert.equal(instance.state, true);
+
+  const autoOffId = Math.max(...tasks.keys());
+  tasks.get(autoOffId)();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(instance.state, false);
+});
+
+test('autoOff with failing offCommand keeps switch on', async () => {
+  const api = createMockApi();
+  const accessory = createMockAccessory(api);
+  const tasks = new Map();
+  let taskId = 1;
+
+  const timers = {
+    setTimeout(fn) {
+      const id = taskId++;
+      tasks.set(id, fn);
+      return id;
+    },
+    clearTimeout(id) {
+      tasks.delete(id);
+    },
+  };
+
+  const instance = new CommandSwitchAccessory(
+    api,
+    createLogger(),
+    accessory,
+    {
+      name: 'Cmd',
+      onCommand: 'on-cmd',
+      offCommand: 'off-cmd',
+      polling: false,
+      pollIntervalSeconds: 5,
+      commandTimeoutSeconds: 5,
+      autoOffSeconds: 5,
+    },
+    new OperationCoordinator(),
+    async (command) => {
+      if (command === 'off-cmd') {
+        throw new Error('off failed');
+      }
+    },
+    timers,
+  );
+
+  instance.configure();
+  await instance.setState(true);
+  assert.equal(instance.state, true);
+
+  const autoOffId = Math.max(...tasks.keys());
+  tasks.get(autoOffId)();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(instance.state, true);
+});

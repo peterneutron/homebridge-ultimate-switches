@@ -56,10 +56,6 @@ function normalizeCommandSwitches(raw) {
     if (!isNonEmptyString(item?.onCommand)) {
       throw new ValidationError(`commandSwitches[${index}].onCommand is required`);
     }
-    if (!isNonEmptyString(item?.offCommand)) {
-      throw new ValidationError(`commandSwitches[${index}].offCommand is required`);
-    }
-
     if (Object.hasOwn(item || {}, 'manufacturer')) {
       throw new ValidationError(`commandSwitches[${index}].manufacturer is no longer supported`);
     }
@@ -73,11 +69,14 @@ function normalizeCommandSwitches(raw) {
     const normalized = {
       name: item.name.trim(),
       onCommand: item.onCommand.trim(),
-      offCommand: item.offCommand.trim(),
+      offCommand: isNonEmptyString(item.offCommand) ? item.offCommand.trim() : undefined,
       stateCommand: isNonEmptyString(item.stateCommand) ? item.stateCommand.trim() : undefined,
       polling: toBoolean(item.polling, false),
       pollIntervalSeconds: clampNumber(item.pollIntervalSeconds, 5, 1, 300),
-      commandTimeoutSeconds: clampNumber(item.commandTimeoutSeconds, 2, 1, 120),
+      commandTimeoutSeconds: clampNumber(item.commandTimeoutSeconds, 5, 1, 120),
+      autoOffSeconds: isNonEmptyString(item.autoOffSeconds) || Number.isFinite(Number(item.autoOffSeconds))
+        ? clampNumber(item.autoOffSeconds, 1, 1, 86400)
+        : undefined,
     };
 
     if (normalized.polling && !normalized.stateCommand) {

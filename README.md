@@ -65,6 +65,11 @@ npm test
 - notification accessory (`calendar name + event label + notification name`)
 - Calendar contact semantics: active calendar states are exposed as Contact Open (`CONTACT_NOT_DETECTED`) and inactive states as Contact Closed (`CONTACT_DETECTED`).
 - `debug: false` keeps logs minimal at info/warn/error level; set `debug: true` to enable verbose debug logs.
+- Command switches:
+- `onCommand` is required; `offCommand` and `stateCommand` are optional.
+- If `polling=true`, `stateCommand` is required.
+- Optional `autoOffSeconds` can turn a command switch off automatically after successful `onCommand`.
+- `commandTimeoutSeconds` is a unified timeout for on/off/state commands (default `5s`).
 - No runtime pruning: partially configured rows fail fast with explicit validation errors.
 - Custom UI creates rows only through explicit `Add ...` actions, so empty template rows are not auto-persisted.
 - Custom UI uses native Homebridge Save only (no plugin-local save button); validation is live and invalid configs disable native Save.

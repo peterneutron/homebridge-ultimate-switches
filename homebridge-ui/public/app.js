@@ -37,7 +37,8 @@ function defaultCommandSwitch() {
     stateCommand: '',
     polling: false,
     pollIntervalSeconds: 5,
-    commandTimeoutSeconds: 2,
+    commandTimeoutSeconds: 5,
+    autoOffSeconds: undefined,
   };
 }
 
@@ -248,6 +249,7 @@ function renderCommandSwitches() {
         inputField({ label: 'Polling', type: 'checkbox', value: item.polling, onInput: (v) => { item.polling = v; } }),
         inputField({ label: 'Poll Interval (s)', type: 'number', value: item.pollIntervalSeconds, onInput: (v) => { item.pollIntervalSeconds = Number(v); } }),
         inputField({ label: 'Command Timeout (s)', type: 'number', value: item.commandTimeoutSeconds, onInput: (v) => { item.commandTimeoutSeconds = Number(v); } }),
+        inputField({ label: 'Auto-Off (s)', type: 'number', value: item.autoOffSeconds, onInput: (v) => { item.autoOffSeconds = v === '' ? undefined : Number(v); } }),
       ]));
       return row;
     },
@@ -512,7 +514,6 @@ function validate(data) {
     const p = `commandSwitches[${i}]`;
     const okName = requireNonEmpty(`${p}.name`, item.name);
     requireNonEmpty(`${p}.onCommand`, item.onCommand);
-    requireNonEmpty(`${p}.offCommand`, item.offCommand);
     if (okName) {
       const k = item.name.trim().toLowerCase();
       if (seen.has(k)) errors.push(`commandSwitches contains duplicate name: ${item.name}`);
@@ -520,6 +521,12 @@ function validate(data) {
     }
     if (item.polling && (!item.stateCommand || String(item.stateCommand).trim() === '')) {
       errors.push(`${p} requires stateCommand when polling is enabled`);
+    }
+    if (item.autoOffSeconds !== undefined && item.autoOffSeconds !== '') {
+      const autoOff = Number(item.autoOffSeconds);
+      if (!Number.isFinite(autoOff) || autoOff < 1 || autoOff > 86400) {
+        errors.push(`${p}.autoOffSeconds must be between 1 and 86400 when provided`);
+      }
     }
   });
 
@@ -622,7 +629,16 @@ function validate(data) {
 function serializeConfig() {
   const cfg = clone(state.config);
   cfg.name = String(cfg.name || '').trim();
-  cfg.commandSwitches = cfg.commandSwitches.map((x) => ({ ...x, name: String(x.name || '').trim(), onCommand: String(x.onCommand || '').trim(), offCommand: String(x.offCommand || '').trim(), stateCommand: String(x.stateCommand || '').trim() }));
+  cfg.commandSwitches = cfg.commandSwitches.map((x) => ({
+    ...x,
+    name: String(x.name || '').trim(),
+    onCommand: String(x.onCommand || '').trim(),
+    offCommand: String(x.offCommand || '').trim() || undefined,
+    stateCommand: String(x.stateCommand || '').trim() || undefined,
+    autoOffSeconds: (x.autoOffSeconds === undefined || x.autoOffSeconds === '')
+      ? undefined
+      : Number(x.autoOffSeconds),
+  }));
   cfg.switches = cfg.switches.map((x) => ({ ...x, name: String(x.name || '').trim() }));
   cfg.timers = cfg.timers.map((x) => ({ ...x, name: String(x.name || '').trim() }));
   cfg.locks = cfg.locks.map((x) => ({ ...x, name: String(x.name || '').trim() }));

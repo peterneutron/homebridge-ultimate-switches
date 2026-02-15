@@ -44,15 +44,39 @@ test('normalizeConfig clamps timer and command numeric ranges', () => {
   assert.equal(config.calendarTriggers[0].requestTimeoutSeconds, 120);
 });
 
+test('normalizeConfig accepts command switch without offCommand and defaults timeout to 5', () => {
+  const config = normalizeConfig({
+    commandSwitches: [{
+      name: 'Trigger',
+      onCommand: 'echo on',
+      polling: false,
+    }],
+  });
+
+  assert.equal(config.commandSwitches[0].offCommand, undefined);
+  assert.equal(config.commandSwitches[0].commandTimeoutSeconds, 5);
+});
+
 test('normalizeConfig throws when polling command switch has no state command', () => {
   assert.throws(() => normalizeConfig({
     commandSwitches: [{
       name: 'Broken',
       onCommand: 'echo on',
-      offCommand: 'echo off',
       polling: true,
     }],
   }), ValidationError);
+});
+
+test('normalizeConfig accepts and clamps autoOffSeconds for command switches', () => {
+  const config = normalizeConfig({
+    commandSwitches: [{
+      name: 'AutoOff',
+      onCommand: 'echo on',
+      autoOffSeconds: 999999,
+    }],
+  });
+
+  assert.equal(config.commandSwitches[0].autoOffSeconds, 86400);
 });
 
 test('normalizeConfig throws when context sensor enabled without coordinates', () => {

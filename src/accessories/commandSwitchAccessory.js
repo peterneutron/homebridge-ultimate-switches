@@ -16,6 +16,7 @@ class CommandSwitchAccessory {
     this.randomFn = randomFn;
     this.state = false;
     this.pollTimer = null;
+    this.autoOffTimer = null;
     this.stopped = false;
     this.consecutivePollFailures = 0;
   }
@@ -53,6 +54,27 @@ class CommandSwitchAccessory {
       this.clearTimeoutFn(this.pollTimer);
       this.pollTimer = null;
     }
+  }
+
+  clearAutoOffTimer() {
+    if (this.autoOffTimer) {
+      this.clearTimeoutFn(this.autoOffTimer);
+      this.autoOffTimer = null;
+    }
+  }
+
+  scheduleAutoOff() {
+    if (!Number.isFinite(Number(this.options.autoOffSeconds)) || Number(this.options.autoOffSeconds) <= 0) {
+      return;
+    }
+    this.clearAutoOffTimer();
+    const delayMs = Number(this.options.autoOffSeconds) * 1000;
+    this.autoOffTimer = this.setTimeoutFn(() => {
+      this.autoOffTimer = null;
+      void this.setState(false).catch((error) => {
+        this.log.warn('[CommandSwitch:%s] Auto-off failed: %s', this.options.name, error.message);
+      });
+    }, delayMs);
   }
 
   scheduleNextPoll(delayMs) {
@@ -97,8 +119,15 @@ class CommandSwitchAccessory {
 
     await this.coordinator.run(this.accessory.UUID, async () => {
       const command = targetState ? this.options.onCommand : this.options.offCommand;
-      await this.executor(command, this.options.commandTimeoutSeconds);
+      if (targetState || command) {
+        await this.executor(command, this.options.commandTimeoutSeconds);
+      }
       this.updateState(targetState, 'set');
+      if (targetState) {
+        this.scheduleAutoOff();
+      } else {
+        this.clearAutoOffTimer();
+      }
     }, {
       timeoutMs: (this.options.commandTimeoutSeconds * 1000) + 2000,
     });
@@ -152,6 +181,7 @@ class CommandSwitchAccessory {
   stop() {
     this.stopped = true;
     this.stopPolling();
+    this.clearAutoOffTimer();
   }
 }
 
