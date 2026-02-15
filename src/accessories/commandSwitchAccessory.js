@@ -67,6 +67,8 @@ class CommandSwitchAccessory {
       const command = targetState ? this.options.onCommand : this.options.offCommand;
       await this.executor(command, this.options.commandTimeoutSeconds);
       this.updateState(targetState, 'set');
+    }, {
+      timeoutMs: (this.options.commandTimeoutSeconds * 1000) + 2000,
     });
   }
 
@@ -85,6 +87,8 @@ class CommandSwitchAccessory {
       }
 
       this.updateState(nextState, 'poll');
+    }, {
+      timeoutMs: (this.options.commandTimeoutSeconds * 1000) + 2000,
     });
   }
 

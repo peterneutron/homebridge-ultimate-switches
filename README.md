@@ -39,6 +39,7 @@ Non-blocking behavior:
 
 - Operations are serialized per accessory key.
 - Different accessories run concurrently, so one long-running operation does not block unrelated switches/events.
+- Accessory queues are timeout-guarded to prevent indefinite lockups from hung operations.
 
 ## Development
 
@@ -53,4 +54,6 @@ npm test
 - Phase 1 and Phase 2 planning artifacts live in `docs/`.
 - Calendar parsing uses `node-ical` (installed as dependency).
 - `webcal://` URLs are supported and normalized to `https://` at runtime.
+- Calendar fetches are timeout-bounded (`calendarTriggers[].requestTimeoutSeconds`).
+- `debug: false` keeps logs minimal at info/warn/error level; set `debug: true` to enable verbose debug logs.
 - Manual smoke config example (including your public test calendar): `examples/manual-smoke.config.json`.

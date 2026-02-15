@@ -45,3 +45,19 @@ test('OperationCoordinator allows different keys to run in parallel', async () =
 
   assert.equal(secondStartedBeforeFirstEnded, true);
 });
+
+test('OperationCoordinator times out hung operation and unblocks next one', async () => {
+  const coordinator = new OperationCoordinator(20);
+  let secondRan = false;
+
+  await assert.rejects(
+    coordinator.run('same', async () => new Promise(() => {})),
+    /timed out/i,
+  );
+
+  await coordinator.run('same', async () => {
+    secondRan = true;
+  });
+
+  assert.equal(secondRan, true);
+});

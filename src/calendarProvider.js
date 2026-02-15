@@ -21,6 +21,16 @@ async function defaultFetch(url) {
   return response.text();
 }
 
+async function fetchWithTimeout(fetchFn, url, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetchFn(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function tryLoadNodeIcal() {
   try {
     // Optional dependency for robust ICS parsing.
@@ -105,18 +115,39 @@ function fallbackParseEvents(text) {
 }
 
 class CalendarProvider {
-  constructor(log, customFetch = defaultFetch) {
+  constructor(log, customFetch = defaultFetch, defaultTimeoutSeconds = 15) {
     this.log = log;
     this.fetch = customFetch;
     this.nodeIcal = tryLoadNodeIcal();
+    this.defaultTimeoutSeconds = defaultTimeoutSeconds;
 
     if (!this.nodeIcal) {
       this.log.debug('[CalendarProvider] Optional dependency node-ical is not installed; using fallback parser');
     }
   }
 
-  async listEvents(url) {
-    const text = await this.fetch(normalizeCalendarUrl(url));
+  async listEvents(url, requestTimeoutSeconds) {
+    const normalizedUrl = normalizeCalendarUrl(url);
+    const timeoutSeconds = Number.isFinite(Number(requestTimeoutSeconds))
+      ? Math.max(1, Number(requestTimeoutSeconds))
+      : this.defaultTimeoutSeconds;
+
+    let text;
+    if (this.fetch === defaultFetch) {
+      text = await fetchWithTimeout(
+        async (targetUrl, options) => {
+          const response = await fetch(targetUrl, options);
+          if (!response.ok) {
+            throw new Error(`Calendar request failed: HTTP ${response.status}`);
+          }
+          return response.text();
+        },
+        normalizedUrl,
+        timeoutSeconds * 1000,
+      );
+    } else {
+      text = await this.fetch(normalizedUrl);
+    }
 
     if (this.nodeIcal) {
       const parsed = this.nodeIcal.parseICS(text);

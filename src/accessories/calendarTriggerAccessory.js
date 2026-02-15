@@ -58,9 +58,9 @@ class CalendarTriggerAccessory {
     this.setupEventAndNotificationServices();
 
     this.publishMainState(false);
-    this.refresh().catch((error) => {
-      this.log.debug('[Calendar:%s] Initial refresh failed: %s', this.options.name, error.message);
-    });
+      this.refresh().catch((error) => {
+        this.log.debug('[Calendar:%s] Initial refresh failed: %s', this.options.name, error.message);
+      });
 
     this.scheduleNextPoll();
   }
@@ -162,7 +162,7 @@ class CalendarTriggerAccessory {
     this.pollTimer = this.setTimeoutFn(() => {
       this.refresh()
         .catch((error) => {
-          this.log.debug('[Calendar:%s] Poll refresh failed: %s', this.options.name, error.message);
+          this.log.warn('[Calendar:%s] Poll refresh failed: %s', this.options.name, error.message);
         })
         .finally(() => {
           this.scheduleNextPoll();
@@ -180,7 +180,7 @@ class CalendarTriggerAccessory {
       const previousPollMs = this.lastPollMs ?? (nowMs - (this.options.updateIntervalMinutes * 60000));
       this.lastPollMs = nowMs;
 
-      const events = await this.provider.listEvents(this.options.url);
+      const events = await this.provider.listEvents(this.options.url, this.options.requestTimeoutSeconds);
       const activeEvents = events.filter((event) => isEventActive(event, nowMs));
 
       const matchedByDef = this.eventDefs.map((def) => {
@@ -220,6 +220,8 @@ class CalendarTriggerAccessory {
       });
 
       this.log.debug('[Calendar:%s] Refresh complete: %d events, %d active, %d watched', this.options.name, events.length, activeEvents.length, watchedActiveCount);
+    }, {
+      timeoutMs: (this.options.requestTimeoutSeconds * 1000) + 5000,
     });
   }
 

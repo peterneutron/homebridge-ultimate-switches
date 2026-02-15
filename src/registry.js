@@ -42,7 +42,7 @@ class AccessoryRegistry {
 
   load(config) {
     this.descriptors = buildDescriptors(config);
-    this.log.info('[Registry] Loaded %d planned accessories', this.descriptors.length);
+    this.log.debug('[Registry] Loaded %d planned accessories', this.descriptors.length);
   }
 
   stats() {

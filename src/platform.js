@@ -3,6 +3,7 @@
 const { normalizeConfig, ValidationError } = require('./config');
 const { AccessoryRegistry } = require('./registry');
 const { OperationCoordinator } = require('./execution');
+const { createLogger } = require('./logger');
 const { BasicSwitchAccessory } = require('./accessories/basicSwitchAccessory');
 const { CalendarTriggerAccessory } = require('./accessories/calendarTriggerAccessory');
 const { CommandSwitchAccessory } = require('./accessories/commandSwitchAccessory');
@@ -16,7 +17,7 @@ const SUPPORTED_KINDS = new Set(['commandSwitch', 'switch', 'timer', 'lock', 'se
 
 class UltimateSwitchesPlatform {
   constructor(log, config, api) {
-    this.log = log;
+    this.baseLog = log;
     this.api = api;
     this.cachedAccessories = new Map();
     this.liveAccessories = new Map();
@@ -26,18 +27,19 @@ class UltimateSwitchesPlatform {
       this.config = normalizeConfig(config);
     } catch (error) {
       if (error instanceof ValidationError) {
-        this.log.error('[Config] Invalid configuration: %s', error.message);
+        this.baseLog.error('[Config] Invalid configuration: %s', error.message);
       } else {
-        this.log.error('[Config] Unexpected configuration error: %s', error.message);
+        this.baseLog.error('[Config] Unexpected configuration error: %s', error.message);
       }
       throw error;
     }
 
-    this.registry = new AccessoryRegistry(log);
+    this.log = createLogger(this.baseLog, this.config.debug);
+    this.registry = new AccessoryRegistry(this.log);
 
     if (this.api) {
       this.api.on('didFinishLaunching', () => {
-        this.log.info('[Init] Finished launching; preparing accessories');
+        this.log.info('[Init] Preparing accessories');
         this.initializeAccessories();
       });
 
@@ -55,7 +57,8 @@ class UltimateSwitchesPlatform {
   initializeAccessories() {
     this.registry.load(this.config);
     const stats = this.registry.stats();
-    this.log.info('[Init] Planned accessory descriptors: %d (%j)', stats.total, stats.byKind);
+    this.log.info('[Init] Planned accessory descriptors: %d', stats.total);
+    this.log.debug('[Init] Descriptor breakdown: %j', stats.byKind);
 
     const activeUUIDs = new Set();
 
@@ -76,7 +79,7 @@ class UltimateSwitchesPlatform {
         accessory.context.key = descriptor.key;
         accessory.context.kind = descriptor.kind;
         this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-        this.log.info('[Init] Registered accessory: %s (%s)', descriptor.name, descriptor.kind);
+        this.log.debug('[Init] Registered accessory: %s (%s)', descriptor.name, descriptor.kind);
       } else {
         accessory.displayName = descriptor.name;
         accessory.context.key = descriptor.key;

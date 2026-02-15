@@ -215,6 +215,7 @@ function normalizeCalendarTriggers(raw) {
       name: item.name.trim(),
       url: item.url.trim(),
       updateIntervalMinutes: clampNumber(item.updateIntervalMinutes, 60, 1, 1440),
+      requestTimeoutSeconds: clampNumber(item.requestTimeoutSeconds, 15, 1, 120),
       updateButton: toBoolean(item.updateButton, true),
       triggerOnUpdates: toBoolean(item.triggerOnUpdates, true),
       triggerOnAnyEvent: toBoolean(item.triggerOnAnyEvent, false),

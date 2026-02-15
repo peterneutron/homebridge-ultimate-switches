@@ -32,11 +32,17 @@ test('normalizeConfig clamps timer and command numeric ranges', () => {
       name: 'Timer',
       periodSeconds: -4,
     }],
+    calendarTriggers: [{
+      name: 'Cal',
+      url: 'https://example.invalid/ics',
+      requestTimeoutSeconds: 999,
+    }],
   });
 
   assert.equal(config.commandSwitches[0].pollIntervalSeconds, 300);
   assert.equal(config.commandSwitches[0].commandTimeoutSeconds, 1);
   assert.equal(config.timers[0].periodSeconds, 1);
+  assert.equal(config.calendarTriggers[0].requestTimeoutSeconds, 120);
 });
 
 
