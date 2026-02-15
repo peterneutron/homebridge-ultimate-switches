@@ -2,7 +2,7 @@
   "pluginAlias": "UltimateSwitches",
   "pluginType": "platform",
   "singular": true,
-  "strictValidation": false,
+  "strictValidation": true,
   "headerDisplay": "Unified automation switches and triggers for Homebridge (HB1/HB2).",
   "footerDisplay": "Phase 2 draft schema: includes core v1 features and context sensor.",
   "schema": {
@@ -11,6 +11,7 @@
       "name": {
         "title": "Name",
         "type": "string",
+        "minLength": 1,
         "default": "Ultimate Switches"
       },
       "debug": {
@@ -28,15 +29,18 @@
           "properties": {
             "name": {
               "title": "Name",
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "onCommand": {
               "title": "On Command",
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "offCommand": {
               "title": "Off Command",
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "stateCommand": {
               "title": "State Command",
@@ -87,7 +91,8 @@
           "properties": {
             "name": {
               "title": "Name",
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "defaultOn": {
               "title": "Default On",
@@ -113,7 +118,8 @@
           "properties": {
             "name": {
               "title": "Name",
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "periodSeconds": {
               "title": "Period (seconds)",
@@ -151,7 +157,8 @@
           "properties": {
             "name": {
               "title": "Name",
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "defaultState": {
               "title": "Default State",
@@ -178,7 +185,8 @@
           "properties": {
             "name": {
               "title": "Name",
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "defaultState": {
               "title": "Default State",
@@ -225,11 +233,13 @@
           "properties": {
             "name": {
               "title": "Calendar Name",
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "url": {
               "title": "Calendar URL",
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "updateIntervalMinutes": {
               "title": "Update Interval (minutes)",
@@ -270,7 +280,8 @@
                 "properties": {
                   "name": {
                     "title": "Event Name Pattern",
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   },
                   "triggerOnUpdates": {
                     "title": "Trigger on Progress Updates",
@@ -287,7 +298,8 @@
                       "properties": {
                         "name": {
                           "title": "Notification Name",
-                          "type": "string"
+                          "type": "string",
+                          "minLength": 1
                         },
                         "startOffsetMinutes": {
                           "title": "Start Offset (minutes)",
@@ -312,7 +324,21 @@
       "contextSensor": {
         "title": "Context Sensor",
         "type": "object",
-        "required": ["enabled", "name", "latitude", "longitude"],
+        "required": ["enabled", "name"],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "enabled": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "required": ["latitude", "longitude"]
+            }
+          }
+        ],
         "properties": {
           "enabled": {
             "title": "Enabled",
@@ -322,6 +348,7 @@
           "name": {
             "title": "Accessory Name",
             "type": "string",
+            "minLength": 1,
             "default": "Home Context"
           },
           "latitude": {

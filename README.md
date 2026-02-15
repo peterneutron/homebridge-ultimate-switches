@@ -56,4 +56,7 @@ npm test
 - `webcal://` URLs are supported and normalized to `https://` at runtime.
 - Calendar fetches are timeout-bounded (`calendarTriggers[].requestTimeoutSeconds`).
 - `debug: false` keeps logs minimal at info/warn/error level; set `debug: true` to enable verbose debug logs.
+- Config placeholder hardening: blank Config UI rows are auto-pruned at startup and one warning is logged per affected group.
+- Partially configured rows still fail fast with validation errors.
+- `contextSensor.latitude` and `contextSensor.longitude` are required only when `contextSensor.enabled` is `true`.
 - Manual smoke config example (including your public test calendar): `examples/manual-smoke.config.json`.
