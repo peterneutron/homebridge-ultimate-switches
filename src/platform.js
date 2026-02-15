@@ -4,6 +4,7 @@ const { normalizeConfig, ValidationError } = require('./config');
 const { AccessoryRegistry } = require('./registry');
 const { OperationCoordinator } = require('./execution');
 const { BasicSwitchAccessory } = require('./accessories/basicSwitchAccessory');
+const { CalendarTriggerAccessory } = require('./accessories/calendarTriggerAccessory');
 const { CommandSwitchAccessory } = require('./accessories/commandSwitchAccessory');
 const { ContextSensorAccessory } = require('./accessories/contextSensorAccessory');
 const { LockAccessory } = require('./accessories/lockAccessory');
@@ -11,7 +12,7 @@ const { SecuritySystemAccessory } = require('./accessories/securitySystemAccesso
 const { TimerSwitchAccessory } = require('./accessories/timerSwitchAccessory');
 const { PLATFORM_NAME, PLUGIN_NAME } = require('./settings');
 
-const SUPPORTED_KINDS = new Set(['commandSwitch', 'switch', 'timer', 'lock', 'security', 'contextSensor']);
+const SUPPORTED_KINDS = new Set(['commandSwitch', 'switch', 'timer', 'lock', 'security', 'calendar', 'contextSensor']);
 
 class UltimateSwitchesPlatform {
   constructor(log, config, api) {
@@ -129,6 +130,10 @@ class UltimateSwitchesPlatform {
 
     if (descriptor.kind === 'security') {
       return new SecuritySystemAccessory(this.api, this.log, accessory, descriptor.config, this.operationCoordinator);
+    }
+
+    if (descriptor.kind === 'calendar') {
+      return new CalendarTriggerAccessory(this.api, this.log, accessory, descriptor.config, this.operationCoordinator);
     }
 
     return null;

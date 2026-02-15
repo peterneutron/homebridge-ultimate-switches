@@ -10,6 +10,7 @@ Implemented accessory families:
 - `timers[]`
 - `locks[]`
 - `securitySystems[]`
+- `calendarTriggers[]`
 - `contextSensor`
 
 ## Platform
