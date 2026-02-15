@@ -7,6 +7,7 @@ Implemented accessory families:
 
 - `commandSwitches[]`
 - `switches[]`
+- `timers[]`
 - `contextSensor`
 
 ## Platform

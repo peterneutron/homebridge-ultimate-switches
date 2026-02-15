@@ -6,9 +6,10 @@ const { OperationCoordinator } = require('./execution');
 const { BasicSwitchAccessory } = require('./accessories/basicSwitchAccessory');
 const { CommandSwitchAccessory } = require('./accessories/commandSwitchAccessory');
 const { ContextSensorAccessory } = require('./accessories/contextSensorAccessory');
+const { TimerSwitchAccessory } = require('./accessories/timerSwitchAccessory');
 const { PLATFORM_NAME, PLUGIN_NAME } = require('./settings');
 
-const SUPPORTED_KINDS = new Set(['commandSwitch', 'switch', 'contextSensor']);
+const SUPPORTED_KINDS = new Set(['commandSwitch', 'switch', 'timer', 'contextSensor']);
 
 class UltimateSwitchesPlatform {
   constructor(log, config, api) {
@@ -112,6 +113,10 @@ class UltimateSwitchesPlatform {
 
     if (descriptor.kind === 'switch') {
       return new BasicSwitchAccessory(this.api, this.log, accessory, descriptor.config, this.operationCoordinator);
+    }
+
+    if (descriptor.kind === 'timer') {
+      return new TimerSwitchAccessory(this.api, this.log, accessory, descriptor.config, this.operationCoordinator);
     }
 
     if (descriptor.kind === 'contextSensor') {
