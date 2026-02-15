@@ -1,0 +1,21 @@
+{
+  "name": "homebridge-ultimate-switches",
+  "version": "0.1.0",
+  "description": "Unified automation switches and triggers for Homebridge",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "engines": {
+    "homebridge": "^1.6.0 || ^2.0.0-beta.0",
+    "node": "^18.20.4 || ^20.15.1 || ^22"
+  },
+  "keywords": [
+    "homebridge-plugin",
+    "automation",
+    "switch",
+    "calendar",
+    "trigger"
+  ],
+  "license": "MIT"
+}
