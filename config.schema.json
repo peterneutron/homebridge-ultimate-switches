@@ -25,7 +25,6 @@
         "items": {
           "title": "Command Switch",
           "type": "object",
-          "required": ["name", "onCommand", "offCommand"],
           "properties": {
             "name": {
               "title": "Name",
@@ -75,7 +74,6 @@
         "items": {
           "title": "Basic Switch",
           "type": "object",
-          "required": ["name"],
           "properties": {
             "name": {
               "title": "Name",
@@ -102,7 +100,6 @@
         "items": {
           "title": "Timer Switch",
           "type": "object",
-          "required": ["name"],
           "properties": {
             "name": {
               "title": "Name",
@@ -141,7 +138,6 @@
         "items": {
           "title": "Lock",
           "type": "object",
-          "required": ["name"],
           "properties": {
             "name": {
               "title": "Name",
@@ -169,7 +165,6 @@
         "items": {
           "title": "Security System",
           "type": "object",
-          "required": ["name"],
           "properties": {
             "name": {
               "title": "Name",
@@ -217,7 +212,6 @@
         "items": {
           "title": "Calendar",
           "type": "object",
-          "required": ["name", "url"],
           "properties": {
             "name": {
               "title": "Calendar Name",
@@ -264,7 +258,6 @@
               "items": {
                 "title": "Event",
                 "type": "object",
-                "required": ["name"],
                 "properties": {
                   "name": {
                     "title": "Event Name Pattern",
@@ -282,7 +275,6 @@
                     "items": {
                       "title": "Notification",
                       "type": "object",
-                      "required": ["name"],
                       "properties": {
                         "name": {
                           "title": "Notification Name",
