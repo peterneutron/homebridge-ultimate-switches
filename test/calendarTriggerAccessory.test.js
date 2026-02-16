@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { CalendarEngine } = require('../src/calendarEngine');
+const { CalendarDeadlineQueue } = require('../src/calendarDeadlineQueue');
 const { CalendarRootAccessory } = require('../src/accessories/calendarRootAccessory');
 const { CalendarEventAccessory } = require('../src/accessories/calendarEventAccessory');
 const { CalendarNotificationAccessory } = require('../src/accessories/calendarNotificationAccessory');
@@ -118,6 +119,10 @@ function logger() {
   return { debug() {}, info() {}, warn() {}, error() {} };
 }
 
+function createQueue(log, clock, scheduler) {
+  return new CalendarDeadlineQueue(log, clock, scheduler);
+}
+
 function createLogSink() {
   const info = [];
   const debug = [];
@@ -177,6 +182,7 @@ test('calendar engine notification pulse activates then resets', async () => {
   const scheduler = createFakeScheduler();
   const start = Date.parse('2026-02-15T12:00:00Z');
   let now = start;
+  const queue = createQueue(logger(), () => now, scheduler);
 
   const engine = new CalendarEngine(
     logger(),
@@ -203,17 +209,21 @@ test('calendar engine notification pulse activates then resets', async () => {
     },
     () => now,
     scheduler,
+    {},
+    queue,
   );
 
   await engine.refreshNow();
-  now = start + 60_000;
-  await engine.refreshNow();
+  scheduler.ids().forEach((id) => scheduler.run(id));
 
   const notificationKey = 'calendarNotification:Developer:^Meeting$:LOL';
   assert.equal(engine.getNotificationState(notificationKey), true);
 
-  const pulseId = Math.max(...scheduler.ids());
-  scheduler.run(pulseId);
+  scheduler.ids().forEach((id) => {
+    if (engine.getNotificationState(notificationKey)) {
+      scheduler.run(id);
+    }
+  });
   assert.equal(engine.getNotificationState(notificationKey), false);
 });
 
@@ -221,6 +231,7 @@ test('calendar engine fires negative start-offset notifications before event sta
   const scheduler = createFakeScheduler();
   const start = Date.parse('2026-02-15T12:00:00Z');
   const now = start - 4 * 60 * 1000;
+  const queue = createQueue(logger(), () => now, scheduler);
 
   const engine = new CalendarEngine(
     logger(),
@@ -247,9 +258,12 @@ test('calendar engine fires negative start-offset notifications before event sta
     },
     () => now,
     scheduler,
+    {},
+    queue,
   );
 
   await engine.refreshNow();
+  scheduler.ids().forEach((id) => scheduler.run(id));
 
   const notificationKey = 'calendarNotification:Developer:^Meeting$:PreStart';
   assert.equal(engine.getNotificationState(notificationKey), true);
@@ -260,6 +274,7 @@ test('calendar engine replays missed boundaries from persisted poll timestamp', 
   const start = Date.parse('2026-02-15T12:00:00Z');
   const now = start - 4 * 60 * 1000;
   let persistedPollMs = now - 2 * 60 * 1000;
+  const queue = createQueue(logger(), () => now, scheduler);
 
   const engine = new CalendarEngine(
     logger(),
@@ -292,9 +307,11 @@ test('calendar engine replays missed boundaries from persisted poll timestamp', 
         persistedPollMs = ms;
       },
     },
+    queue,
   );
 
   await engine.refreshNow();
+  scheduler.ids().forEach((id) => scheduler.run(id));
 
   const notificationKey = 'calendarNotification:Developer:^Meeting$:PreStart';
   assert.equal(engine.getNotificationState(notificationKey), true);
@@ -307,6 +324,7 @@ test('calendar engine caps replay window to 24h for stale persisted timestamp', 
   const now = start;
   const twoDays = 48 * 60 * 60 * 1000;
   let persistedPollMs = now - twoDays;
+  const queue = createQueue(logger(), () => now, scheduler);
 
   const engine = new CalendarEngine(
     logger(),
@@ -339,6 +357,7 @@ test('calendar engine caps replay window to 24h for stale persisted timestamp', 
         persistedPollMs = ms;
       },
     },
+    queue,
   );
 
   await engine.refreshNow();
@@ -346,6 +365,50 @@ test('calendar engine caps replay window to 24h for stale persisted timestamp', 
   const notificationKey = 'calendarNotification:Developer:^Meeting$:HugeOffset';
   assert.equal(engine.getNotificationState(notificationKey), false);
   assert.equal(persistedPollMs, now);
+});
+
+test('calendar queue fires boundary between refresh intervals without extra refresh', async () => {
+  const scheduler = createFakeScheduler();
+  const start = Date.parse('2026-02-15T07:00:00Z');
+  let now = Date.parse('2026-02-15T06:55:00Z');
+  const queue = createQueue(logger(), () => now, scheduler);
+
+  const engine = new CalendarEngine(
+    logger(),
+    {
+      name: 'Developer',
+      url: 'https://example.invalid/ics',
+      updateIntervalMinutes: 60,
+      requestTimeoutSeconds: 15,
+      updateButton: false,
+      triggerOnUpdates: false,
+      triggerOnAnyEvent: false,
+      events: [{
+        name: '^Meeting$',
+        triggerOnUpdates: false,
+        notifications: [{ name: 'StartNow', startOffsetMinutes: 0 }],
+      }],
+    },
+    {
+      listEvents: async () => [{
+        summary: 'Meeting',
+        startMs: start,
+        endMs: start + 60 * 60 * 1000,
+      }],
+    },
+    () => now,
+    scheduler,
+    {},
+    queue,
+  );
+
+  await engine.refreshNow();
+  const key = 'calendarNotification:Developer:^Meeting$:StartNow';
+  assert.equal(engine.getNotificationState(key), false);
+
+  now = start;
+  scheduler.ids().forEach((id) => scheduler.run(id));
+  assert.equal(engine.getNotificationState(key), true);
 });
 
 test('calendar root accessory removes legacy child services on cached accessory reuse', () => {
@@ -480,6 +543,7 @@ test('calendar engine logs INFO when notifications fire', async () => {
   const sink = createLogSink();
   const start = Date.parse('2026-02-15T12:00:00Z');
   const now = start - (4 * 60 * 1000);
+  const queue = createQueue(sink.logger, () => now, scheduler);
 
   const engine = new CalendarEngine(
     sink.logger,
@@ -506,11 +570,14 @@ test('calendar engine logs INFO when notifications fire', async () => {
     },
     () => now,
     scheduler,
+    {},
+    queue,
   );
 
   await engine.refreshNow();
+  scheduler.ids().forEach((id) => scheduler.run(id));
   assert.equal(
-    sink.info.some((args) => args[0] === '[Calendar:%s] Notifications fired: %d' && args[1] === 'Developer' && args[2] === 1),
+    sink.info.some((args) => args[0] === '[Calendar:%s] Notification fired: %s due=%s latency=%s' && args[1] === 'Developer'),
     true,
   );
 });

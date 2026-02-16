@@ -42,6 +42,7 @@ test('normalizeConfig clamps timer and command numeric ranges', () => {
   assert.equal(config.commandSwitches[0].commandTimeoutSeconds, 1);
   assert.equal(config.timers[0].periodSeconds, 1);
   assert.equal(config.calendarTriggers[0].requestTimeoutSeconds, 120);
+  assert.equal(config.calendarTriggers[0].updateIntervalMinutes, 30);
 });
 
 test('normalizeConfig accepts command switch without offCommand and defaults timeout to 5', () => {

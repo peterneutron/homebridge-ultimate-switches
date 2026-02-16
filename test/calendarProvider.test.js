@@ -54,3 +54,60 @@ test('listEvents surfaces parser failures with calendar URL context', async () =
     /Calendar parse failed for https:\/\/example.com\/test\.ics: boom/,
   );
 });
+
+test('listEvents uses conditional requests and reuses cached events on 304', async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+  try {
+    global.fetch = async (_url, options = {}) => {
+      calls.push(options.headers || {});
+      if (calls.length === 1) {
+        return {
+          ok: true,
+          status: 200,
+          headers: {
+            get(name) {
+              if (String(name).toLowerCase() === 'etag') {
+                return '"abc"';
+              }
+              if (String(name).toLowerCase() === 'last-modified') {
+                return 'Mon, 01 Jan 2024 00:00:00 GMT';
+              }
+              return null;
+            },
+          },
+          async text() {
+            return [
+              'BEGIN:VCALENDAR',
+              'BEGIN:VEVENT',
+              'SUMMARY:Cached Event',
+              'DTSTART:20260215T120000Z',
+              'DTEND:20260215T130000Z',
+              'END:VEVENT',
+              'END:VCALENDAR',
+            ].join('\n');
+          },
+        };
+      }
+      return {
+        ok: false,
+        status: 304,
+        headers: { get() { return null; } },
+        async text() { return ''; },
+      };
+    };
+
+    const provider = new CalendarProvider({ debug() {} });
+    const first = await provider.listEvents('https://example.com/test.ics', 5);
+    const second = await provider.listEvents('https://example.com/test.ics', 5);
+
+    assert.equal(first.length, 1);
+    assert.equal(second.length, 1);
+    assert.equal(second[0].summary, 'Cached Event');
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1]['If-None-Match'], '"abc"');
+    assert.equal(calls[1]['If-Modified-Since'], 'Mon, 01 Jan 2024 00:00:00 GMT');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

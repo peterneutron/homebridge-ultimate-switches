@@ -3,6 +3,7 @@
 const { normalizeConfig, ValidationError } = require('./config');
 const { AccessoryRegistry } = require('./registry');
 const { CalendarEngine } = require('./calendarEngine');
+const { CalendarDeadlineQueue } = require('./calendarDeadlineQueue');
 const { OperationCoordinator } = require('./execution');
 const { createLogger } = require('./logger');
 const { BasicSwitchAccessory } = require('./accessories/basicSwitchAccessory');
@@ -52,6 +53,7 @@ class UltimateSwitchesPlatform {
 
     this.log = createLogger(this.baseLog, this.config.debug);
     this.registry = new AccessoryRegistry(this.log);
+    this.calendarDeadlineQueue = new CalendarDeadlineQueue(this.log);
 
     if (this.api) {
       this.api.on('didFinishLaunching', () => {
@@ -62,6 +64,7 @@ class UltimateSwitchesPlatform {
       this.api.on('shutdown', () => {
         this.liveAccessories.forEach((instance) => instance.stop?.());
         this.calendarEngines.forEach((engine) => engine.stop());
+        this.calendarDeadlineQueue.stop();
       });
     }
   }
@@ -230,7 +233,12 @@ class UltimateSwitchesPlatform {
           setPersistedLastPollMs: (ms) => {
             context.calendarLastPollMs = ms;
           },
+          getPersistedBoundaryFireMap: () => context.calendarFiredBoundaryIds ?? {},
+          setPersistedBoundaryFireMap: (value) => {
+            context.calendarFiredBoundaryIds = value;
+          },
         },
+        this.calendarDeadlineQueue,
       ));
     }
     return this.calendarEngines.get(key);

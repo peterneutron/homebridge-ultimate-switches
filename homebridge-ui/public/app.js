@@ -78,7 +78,7 @@ function defaultCalendarTrigger() {
   return {
     name: '',
     url: '',
-    updateIntervalMinutes: 60,
+    updateIntervalMinutes: 30,
     requestTimeoutSeconds: 15,
     updateButton: true,
     triggerOnUpdates: true,

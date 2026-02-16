@@ -63,6 +63,7 @@ class CalendarProvider {
     this.fetch = customFetch;
     this.nodeIcal = nodeIcal;
     this.defaultTimeoutSeconds = defaultTimeoutSeconds;
+    this.responseCache = new Map();
   }
 
   async listEvents(url, requestTimeoutSeconds) {
@@ -73,21 +74,46 @@ class CalendarProvider {
 
     let text;
     if (this.fetch === defaultFetch) {
-      text = await fetchWithTimeout(
-        async (targetUrl, options) => {
-          const response = await fetch(targetUrl, options);
-          if (!response.ok) {
-            throw new Error(`Calendar request failed: HTTP ${response.status}`);
-          }
-          return response.text();
-        },
+      const cacheEntry = this.responseCache.get(normalizedUrl) || {};
+      const headers = {};
+      if (cacheEntry.etag) {
+        headers['If-None-Match'] = cacheEntry.etag;
+      }
+      if (cacheEntry.lastModified) {
+        headers['If-Modified-Since'] = cacheEntry.lastModified;
+      }
+
+      const response = await fetchWithTimeout(
+        async (targetUrl, options) => fetch(targetUrl, { ...options, headers }),
         normalizedUrl,
         timeoutSeconds * 1000,
       );
-    } else {
-      text = await this.fetch(normalizedUrl);
+
+      if (response.status === 304) {
+        this.log.debug('[CalendarProvider] Not modified: %s', normalizedUrl);
+        return Array.isArray(cacheEntry.events) ? cacheEntry.events : [];
+      }
+
+      if (!response.ok) {
+        throw new Error(`Calendar request failed: HTTP ${response.status}`);
+      }
+
+      text = await response.text();
+      try {
+        const parsed = this.nodeIcal.parseICS(text);
+        const events = normalizeParsedEvents(parsed);
+        this.responseCache.set(normalizedUrl, {
+          etag: response.headers.get('etag') || undefined,
+          lastModified: response.headers.get('last-modified') || undefined,
+          events,
+        });
+        return events;
+      } catch (error) {
+        throw new Error(`Calendar parse failed for ${normalizedUrl}: ${error.message}`);
+      }
     }
 
+    text = await this.fetch(normalizedUrl);
     try {
       const parsed = this.nodeIcal.parseICS(text);
       return normalizeParsedEvents(parsed);

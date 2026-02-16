@@ -232,7 +232,7 @@
             "updateIntervalMinutes": {
               "title": "Update Interval (minutes)",
               "type": "integer",
-              "default": 60,
+              "default": 30,
               "minimum": 1,
               "maximum": 1440
             },

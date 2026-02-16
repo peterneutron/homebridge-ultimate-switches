@@ -57,7 +57,10 @@ npm test
 - Calendar parsing uses `node-ical` (installed as dependency).
 - `webcal://` URLs are supported and normalized to `https://` at runtime.
 - Calendar fetches are timeout-bounded (`calendarTriggers[].requestTimeoutSeconds`).
-- Calendar engines persist last successful poll timestamp in cached accessory context and replay missed boundaries on restart (bounded to 24h catch-up window).
+- Calendar engines use a global deadline queue for high-resolution notification timing between fetch intervals.
+- Calendar engines persist last successful poll timestamp and fired boundary ids in cached accessory context.
+- Missed boundaries are caught up only when lateness is within 10 minutes.
+- Calendar event processing is bounded to a rolling window of 24h in the past and 48h in the future.
 - Calendar trigger config UI is schema-driven; nested watched events and notifications are edited via auto-rendered nested array controls.
 - When `calendarTriggers[].triggerOnAnyEvent` is `false`, at least one `calendarTriggers[].events[]` regex pattern is required.
 - Calendar triggers are exposed as separate accessories for reliable HomeKit naming:
@@ -69,6 +72,7 @@ npm test
 - Logging policy:
 - INFO is change-focused: accessory state transitions, command auto-off lifecycle, calendar event deltas, and fired notification counts.
 - DEBUG includes internals: polling/backoff timings, calendar refresh windows/delta detail, and zone-level/security internals.
+- `calendarTriggers[].updateIntervalMinutes` defaults to `30` minutes (queue scheduling handles fine-grained trigger timing between refreshes).
 - Command switches:
 - `onCommand` is required; `offCommand` and `stateCommand` are optional.
 - If `polling=true`, `stateCommand` is required.

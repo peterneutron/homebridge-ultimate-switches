@@ -1,12 +1,15 @@
 'use strict';
 
 const { CalendarProvider } = require('./calendarProvider');
-const { computeProgress, isEventActive, shouldFireNotification } = require('./calendarLogic');
+const { computeProgress, isEventActive } = require('./calendarLogic');
 const { buildCalendarEventKey, buildCalendarNotificationKey } = require('./calendarKeys');
 const { formatCalendarDelta } = require('./logger');
 
 const PULSE_MS = 10000;
 const MAX_REPLAY_WINDOW_MS = 24 * 60 * 60 * 1000;
+const EVENT_PAST_WINDOW_MS = 24 * 60 * 60 * 1000;
+const EVENT_FUTURE_WINDOW_MS = 48 * 60 * 60 * 1000;
+const FIRED_BOUNDARY_TTL_MS = 24 * 60 * 60 * 1000;
 
 function safeRegex(pattern, log, label) {
   try {
@@ -71,7 +74,7 @@ function computeEventDelta(previousEvents, nextEvents) {
 }
 
 class CalendarEngine {
-  constructor(log, calendarConfig, provider = null, clock = () => Date.now(), timers = {}, persistence = {}) {
+  constructor(log, calendarConfig, provider = null, clock = () => Date.now(), timers = {}, persistence = {}, deadlineQueue = null) {
     this.log = log;
     this.config = calendarConfig;
     this.provider = provider || new CalendarProvider(log);
@@ -84,6 +87,13 @@ class CalendarEngine {
     this.setPersistedLastPollMs = typeof persistence.setPersistedLastPollMs === 'function'
       ? persistence.setPersistedLastPollMs
       : () => {};
+    this.getPersistedBoundaryFireMap = typeof persistence.getPersistedBoundaryFireMap === 'function'
+      ? persistence.getPersistedBoundaryFireMap
+      : () => ({});
+    this.setPersistedBoundaryFireMap = typeof persistence.setPersistedBoundaryFireMap === 'function'
+      ? persistence.setPersistedBoundaryFireMap
+      : () => {};
+    this.deadlineQueue = deadlineQueue;
 
     this.started = false;
     this.stopped = false;
@@ -101,6 +111,7 @@ class CalendarEngine {
     this.notificationSubscribers = new Map();
     this.pulseTimers = new Map();
     this.previousEvents = [];
+    this.firedBoundaryMap = this._hydrateBoundaryMap(this.getPersistedBoundaryFireMap());
 
     this.eventDefs = this.config.events.map((event) => {
       const eventKey = buildCalendarEventKey(this.config.name, event.name);
@@ -119,6 +130,12 @@ class CalendarEngine {
         notifications,
       };
     });
+
+    if (this.deadlineQueue) {
+      this.deadlineQueue.registerCalendar(this.config.name, (deadline, meta) => {
+        this.handleDeadline(deadline, meta);
+      });
+    }
   }
 
   start() {
@@ -142,6 +159,9 @@ class CalendarEngine {
       this.clearTimeoutFn(timeout);
     }
     this.pulseTimers.clear();
+    if (this.deadlineQueue) {
+      this.deadlineQueue.removeCalendar(this.config.name);
+    }
   }
 
   scheduleNextPoll() {
@@ -160,6 +180,128 @@ class CalendarEngine {
           this.scheduleNextPoll();
         });
     }, this.config.updateIntervalMinutes * 60000);
+  }
+
+  _hydrateBoundaryMap(raw) {
+    const nowMs = this.clock();
+    const source = raw && typeof raw === 'object' ? raw : {};
+    const map = new Map();
+    Object.entries(source).forEach(([id, timestamp]) => {
+      const firedAtMs = Number(timestamp);
+      if (!Number.isFinite(firedAtMs)) {
+        return;
+      }
+      if ((nowMs - firedAtMs) <= FIRED_BOUNDARY_TTL_MS) {
+        map.set(id, firedAtMs);
+      }
+    });
+    return map;
+  }
+
+  _persistBoundaryMap() {
+    const payload = {};
+    this.firedBoundaryMap.forEach((timestamp, id) => {
+      payload[id] = timestamp;
+    });
+    this.setPersistedBoundaryFireMap(payload);
+  }
+
+  _pruneBoundaryMap(nowMs) {
+    this.firedBoundaryMap.forEach((timestamp, id) => {
+      if ((nowMs - timestamp) > FIRED_BOUNDARY_TTL_MS) {
+        this.firedBoundaryMap.delete(id);
+      }
+    });
+  }
+
+  _isBoundaryRecentlyFired(id, nowMs) {
+    const firedAtMs = this.firedBoundaryMap.get(id);
+    return Number.isFinite(firedAtMs) && ((nowMs - firedAtMs) <= FIRED_BOUNDARY_TTL_MS);
+  }
+
+  _markBoundaryFired(id, nowMs) {
+    this.firedBoundaryMap.set(id, nowMs);
+    this._pruneBoundaryMap(nowMs);
+    this._persistBoundaryMap();
+  }
+
+  _latencyBucket(latenessMs) {
+    if (latenessMs <= 1000) {
+      return '<=1s';
+    }
+    if (latenessMs <= 10000) {
+      return '<=10s';
+    }
+    if (latenessMs <= 60000) {
+      return '<=1m';
+    }
+    return '<=10m';
+  }
+
+  _buildBoundaryId(notificationKey, boundaryMs, boundaryType, eventSignature) {
+    return `${this.config.name}|${notificationKey}|${boundaryMs}|${boundaryType}|${eventSignature}`;
+  }
+
+  _buildBoundariesForMatches(matchesByDef, nowMs) {
+    const boundaries = [];
+    matchesByDef.forEach(({ def, allMatches }) => {
+      def.notifications.forEach((notification) => {
+        allMatches.forEach((event) => {
+          const eventSignature = `${event.summary}|${event.startMs}|${event.endMs}`;
+          if (Number.isFinite(notification.startOffsetMinutes)) {
+            const boundaryMs = event.startMs + (notification.startOffsetMinutes * 60000);
+            boundaries.push({
+              id: this._buildBoundaryId(notification.notificationKey, boundaryMs, 'startOffset', eventSignature),
+              calendarName: this.config.name,
+              notificationKey: notification.notificationKey,
+              dueMs: boundaryMs,
+              eventSignature,
+              boundaryType: 'startOffset',
+            });
+          }
+          if (Number.isFinite(notification.endOffsetMinutes)) {
+            const boundaryMs = event.endMs + (notification.endOffsetMinutes * 60000);
+            boundaries.push({
+              id: this._buildBoundaryId(notification.notificationKey, boundaryMs, 'endOffset', eventSignature),
+              calendarName: this.config.name,
+              notificationKey: notification.notificationKey,
+              dueMs: boundaryMs,
+              eventSignature,
+              boundaryType: 'endOffset',
+            });
+          }
+        });
+      });
+    });
+    return boundaries.filter((entry) => (
+      Number.isFinite(entry.dueMs)
+      && entry.dueMs >= (nowMs - EVENT_PAST_WINDOW_MS)
+      && entry.dueMs <= (nowMs + EVENT_FUTURE_WINDOW_MS)
+    ));
+  }
+
+  handleDeadline(deadline, meta = {}) {
+    const nowMs = Number.isFinite(meta.nowMs) ? meta.nowMs : this.clock();
+    this._pruneBoundaryMap(nowMs);
+    if (this._isBoundaryRecentlyFired(deadline.id, nowMs)) {
+      this.log.debug('[Calendar:%s] Skipping duplicate boundary fire: %s', this.config.name, deadline.id);
+      return;
+    }
+    this.triggerPulse(
+      deadline.notificationKey,
+      () => this.publishNotificationState(deadline.notificationKey, true),
+      () => this.publishNotificationState(deadline.notificationKey, false),
+    );
+    this._markBoundaryFired(deadline.id, nowMs);
+    const dueIso = new Date(deadline.dueMs).toISOString();
+    const latenessMs = Number.isFinite(meta.latenessMs) ? meta.latenessMs : Math.max(0, nowMs - deadline.dueMs);
+    this.log.info(
+      '[Calendar:%s] Notification fired: %s due=%s latency=%s',
+      this.config.name,
+      deadline.notificationKey,
+      dueIso,
+      this._latencyBucket(latenessMs),
+    );
   }
 
   async refreshNow() {
@@ -192,17 +334,28 @@ class CalendarEngine {
       );
 
       const events = await this.provider.listEvents(this.config.url, this.config.requestTimeoutSeconds);
-      const activeEvents = events.filter((event) => isEventActive(event, nowMs));
-      const delta = computeEventDelta(this.previousEvents, events);
+      const filteredEvents = events.filter((event) => (
+        event.endMs >= (nowMs - EVENT_PAST_WINDOW_MS)
+        && event.startMs <= (nowMs + EVENT_FUTURE_WINDOW_MS)
+      ));
+      this.log.debug(
+        '[Calendar:%s] Event window filter kept %d/%d events',
+        this.config.name,
+        filteredEvents.length,
+        events.length,
+      );
+
+      const activeEvents = filteredEvents.filter((event) => isEventActive(event, nowMs));
+      const delta = computeEventDelta(this.previousEvents, filteredEvents);
       if (delta.added > 0 || delta.removed > 0 || delta.changed > 0) {
         this.log.info('[Calendar:%s] Event delta: %s', this.config.name, formatCalendarDelta(delta.added, delta.removed, delta.changed));
       }
       this.log.debug('[Calendar:%s] Event delta detail: %j', this.config.name, delta);
-      this.previousEvents = events;
+      this.previousEvents = filteredEvents;
 
       const matchedByDef = this.eventDefs.map((def) => {
         const activeMatches = activeEvents.filter((event) => def.regex.test(event.summary));
-        const allMatches = events.filter((event) => def.regex.test(event.summary));
+        const allMatches = filteredEvents.filter((event) => def.regex.test(event.summary));
         return { def, activeMatches, allMatches };
       });
 
@@ -221,7 +374,6 @@ class CalendarEngine {
         this.publishRootState(calendarIsActive);
       }
 
-      let firedNotifications = 0;
       matchedByDef.forEach(({ def, activeMatches, allMatches }) => {
         const active = activeMatches.length > 0;
         const progress = active ? computeProgress(activeMatches[0], nowMs) : 0.0001;
@@ -235,22 +387,20 @@ class CalendarEngine {
         } else {
           this.publishEventState(def.eventKey, active, progress);
         }
-
-        def.notifications.forEach((notification) => {
-          const shouldFire = allMatches.some((event) => shouldFireNotification(event, notification, previousPollMs, nowMs));
-          if (shouldFire) {
-            firedNotifications += 1;
-            this.log.debug('[Calendar:%s] Notification trigger matched: %s', this.config.name, notification.notificationKey);
-            this.triggerPulse(
-              notification.notificationKey,
-              () => this.publishNotificationState(notification.notificationKey, true),
-              () => this.publishNotificationState(notification.notificationKey, false),
-            );
-          }
-        });
       });
-      if (firedNotifications > 0) {
-        this.log.info('[Calendar:%s] Notifications fired: %d', this.config.name, firedNotifications);
+
+      if (this.deadlineQueue) {
+        const boundaries = this._buildBoundariesForMatches(matchedByDef, nowMs);
+        const queueStats = this.deadlineQueue.upsertCalendarDeadlines(this.config.name, boundaries);
+        if (queueStats.added > 0 || queueStats.removed > 0) {
+          this.log.info(
+            '[Calendar:%s] Queue rebuild: +%d -%d total=%d',
+            this.config.name,
+            queueStats.added,
+            queueStats.removed,
+            queueStats.total,
+          );
+        }
       }
 
       this.log.debug(
