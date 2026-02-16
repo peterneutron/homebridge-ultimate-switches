@@ -79,7 +79,7 @@ test('normalizeConfig accepts and clamps autoOffSeconds for command switches', (
   assert.equal(config.commandSwitches[0].autoOffSeconds, 86400);
 });
 
-test('normalizeConfig throws when context sensor enabled without coordinates', () => {
+test('normalizeConfig throws when context sensor enabled without latitude', () => {
   assert.throws(() => normalizeConfig({
     contextSensor: {
       enabled: true,
@@ -103,6 +103,21 @@ test('normalizeConfig accepts enabled context sensor with coordinates', () => {
   assert.equal(config.contextSensor.latitude, 52.52);
   assert.equal(config.contextSensor.longitude, 13.405);
   assert.equal(config.contextSensor.refreshIntervalSeconds, 30);
+});
+
+test('normalizeConfig accepts enabled context sensor with latitude only', () => {
+  const config = normalizeConfig({
+    contextSensor: {
+      enabled: true,
+      name: 'Ctx',
+      latitude: 52.52,
+      refreshIntervalSeconds: 60,
+    },
+  });
+
+  assert.equal(config.contextSensor.enabled, true);
+  assert.equal(config.contextSensor.latitude, 52.52);
+  assert.equal(config.contextSensor.longitude, undefined);
 });
 
 test('normalizeConfig rejects duplicate names per group', () => {

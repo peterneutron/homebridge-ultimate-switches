@@ -1,6 +1,7 @@
 'use strict';
 
 const { bindOnGet, bindOnSet } = require('../hapBinding');
+const { formatBoolState, logTransition } = require('../logger');
 
 class LockAccessory {
   constructor(api, log, accessory, options, coordinator) {
@@ -52,10 +53,19 @@ class LockAccessory {
 
   async setTargetState(value) {
     await this.coordinator.run(this.accessory.UUID, async () => {
+      const previous = this.targetState === this.api.hap.Characteristic.LockTargetState.SECURED;
       this.targetState = value;
       this.currentState = this.defaultCurrentState(value);
       this.accessory.context.lockTargetState = this.targetState;
       this.publishState();
+      logTransition(
+        this.log,
+        'Lock',
+        this.options.name,
+        formatBoolState('lock', previous),
+        formatBoolState('lock', value === this.api.hap.Characteristic.LockTargetState.SECURED),
+        'manual',
+      );
       this.log.debug('[Lock:%s] Target state set to %s', this.options.name, value);
     });
   }

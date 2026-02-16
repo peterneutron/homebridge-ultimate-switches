@@ -3,8 +3,10 @@
 const { CalendarProvider } = require('./calendarProvider');
 const { computeProgress, isEventActive, shouldFireNotification } = require('./calendarLogic');
 const { buildCalendarEventKey, buildCalendarNotificationKey } = require('./calendarKeys');
+const { formatCalendarDelta } = require('./logger');
 
 const PULSE_MS = 10000;
+const MAX_REPLAY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function safeRegex(pattern, log, label) {
   try {
@@ -16,14 +18,72 @@ function safeRegex(pattern, log, label) {
   }
 }
 
+function buildSummaryBuckets(events) {
+  const buckets = new Map();
+  events.forEach((event) => {
+    const key = String(event.summary || '');
+    if (!buckets.has(key)) {
+      buckets.set(key, new Set());
+    }
+    buckets.get(key).add(`${event.startMs}|${event.endMs}`);
+  });
+  return buckets;
+}
+
+function computeEventDelta(previousEvents, nextEvents) {
+  const previousSet = new Set(previousEvents.map((event) => `${event.summary}|${event.startMs}|${event.endMs}`));
+  const nextSet = new Set(nextEvents.map((event) => `${event.summary}|${event.startMs}|${event.endMs}`));
+
+  let added = 0;
+  let removed = 0;
+  nextSet.forEach((key) => {
+    if (!previousSet.has(key)) {
+      added += 1;
+    }
+  });
+  previousSet.forEach((key) => {
+    if (!nextSet.has(key)) {
+      removed += 1;
+    }
+  });
+
+  const previousBuckets = buildSummaryBuckets(previousEvents);
+  const nextBuckets = buildSummaryBuckets(nextEvents);
+  let changed = 0;
+  nextBuckets.forEach((nextTimes, summary) => {
+    if (!previousBuckets.has(summary)) {
+      return;
+    }
+    const previousTimes = previousBuckets.get(summary);
+    if (previousTimes.size !== nextTimes.size) {
+      changed += 1;
+      return;
+    }
+    for (const value of nextTimes) {
+      if (!previousTimes.has(value)) {
+        changed += 1;
+        return;
+      }
+    }
+  });
+
+  return { added, removed, changed };
+}
+
 class CalendarEngine {
-  constructor(log, calendarConfig, provider = null, clock = () => Date.now(), timers = {}) {
+  constructor(log, calendarConfig, provider = null, clock = () => Date.now(), timers = {}, persistence = {}) {
     this.log = log;
     this.config = calendarConfig;
     this.provider = provider || new CalendarProvider(log);
     this.clock = clock;
     this.setTimeoutFn = timers.setTimeout || setTimeout;
     this.clearTimeoutFn = timers.clearTimeout || clearTimeout;
+    this.getPersistedLastPollMs = typeof persistence.getPersistedLastPollMs === 'function'
+      ? persistence.getPersistedLastPollMs
+      : () => null;
+    this.setPersistedLastPollMs = typeof persistence.setPersistedLastPollMs === 'function'
+      ? persistence.setPersistedLastPollMs
+      : () => {};
 
     this.started = false;
     this.stopped = false;
@@ -40,6 +100,7 @@ class CalendarEngine {
     this.eventSubscribers = new Map();
     this.notificationSubscribers = new Map();
     this.pulseTimers = new Map();
+    this.previousEvents = [];
 
     this.eventDefs = this.config.events.map((event) => {
       const eventKey = buildCalendarEventKey(this.config.name, event.name);
@@ -113,18 +174,39 @@ class CalendarEngine {
     this.refreshing = true;
     try {
       const nowMs = this.clock();
-      const previousPollMs = this.lastPollMs ?? (nowMs - (this.config.updateIntervalMinutes * 60000));
-      this.lastPollMs = nowMs;
+      const fallbackPollMs = nowMs - (this.config.updateIntervalMinutes * 60000);
+      const persistedPollMs = Number(this.getPersistedLastPollMs());
+      const hasValidPersistedPollMs = Number.isFinite(persistedPollMs) && persistedPollMs > 0;
+      const previousPollMs = hasValidPersistedPollMs
+        ? Math.max(persistedPollMs, nowMs - MAX_REPLAY_WINDOW_MS)
+        : (this.lastPollMs ?? fallbackPollMs);
+      const replaySource = hasValidPersistedPollMs ? 'persisted' : (this.lastPollMs === null ? 'fallback' : 'memory');
+      const replayCapped = hasValidPersistedPollMs && persistedPollMs < (nowMs - MAX_REPLAY_WINDOW_MS);
+      this.log.debug(
+        '[Calendar:%s] Refresh window from=%s to=%s source=%s capped=%s',
+        this.config.name,
+        new Date(previousPollMs).toISOString(),
+        new Date(nowMs).toISOString(),
+        replaySource,
+        replayCapped,
+      );
 
       const events = await this.provider.listEvents(this.config.url, this.config.requestTimeoutSeconds);
       const activeEvents = events.filter((event) => isEventActive(event, nowMs));
+      const delta = computeEventDelta(this.previousEvents, events);
+      if (delta.added > 0 || delta.removed > 0 || delta.changed > 0) {
+        this.log.info('[Calendar:%s] Event delta: %s', this.config.name, formatCalendarDelta(delta.added, delta.removed, delta.changed));
+      }
+      this.log.debug('[Calendar:%s] Event delta detail: %j', this.config.name, delta);
+      this.previousEvents = events;
 
       const matchedByDef = this.eventDefs.map((def) => {
-        const matches = activeEvents.filter((event) => def.regex.test(event.summary));
-        return { def, matches };
+        const activeMatches = activeEvents.filter((event) => def.regex.test(event.summary));
+        const allMatches = events.filter((event) => def.regex.test(event.summary));
+        return { def, activeMatches, allMatches };
       });
 
-      const watchedActiveCount = matchedByDef.reduce((acc, item) => acc + item.matches.length, 0);
+      const watchedActiveCount = matchedByDef.reduce((acc, item) => acc + item.activeMatches.length, 0);
       const calendarIsActive = this.config.triggerOnAnyEvent
         ? activeEvents.length > 0
         : watchedActiveCount > 0;
@@ -139,9 +221,10 @@ class CalendarEngine {
         this.publishRootState(calendarIsActive);
       }
 
-      matchedByDef.forEach(({ def, matches }) => {
-        const active = matches.length > 0;
-        const progress = active ? computeProgress(matches[0], nowMs) : 0.0001;
+      let firedNotifications = 0;
+      matchedByDef.forEach(({ def, activeMatches, allMatches }) => {
+        const active = activeMatches.length > 0;
+        const progress = active ? computeProgress(activeMatches[0], nowMs) : 0.0001;
 
         if (def.triggerOnUpdates && active) {
           this.triggerPulse(
@@ -154,8 +237,10 @@ class CalendarEngine {
         }
 
         def.notifications.forEach((notification) => {
-          const shouldFire = matches.some((event) => shouldFireNotification(event, notification, previousPollMs, nowMs));
+          const shouldFire = allMatches.some((event) => shouldFireNotification(event, notification, previousPollMs, nowMs));
           if (shouldFire) {
+            firedNotifications += 1;
+            this.log.debug('[Calendar:%s] Notification trigger matched: %s', this.config.name, notification.notificationKey);
             this.triggerPulse(
               notification.notificationKey,
               () => this.publishNotificationState(notification.notificationKey, true),
@@ -164,6 +249,9 @@ class CalendarEngine {
           }
         });
       });
+      if (firedNotifications > 0) {
+        this.log.info('[Calendar:%s] Notifications fired: %d', this.config.name, firedNotifications);
+      }
 
       this.log.debug(
         '[Calendar:%s] Refresh complete: %d events, %d active, %d watched',
@@ -172,6 +260,9 @@ class CalendarEngine {
         activeEvents.length,
         watchedActiveCount,
       );
+
+      this.lastPollMs = nowMs;
+      this.setPersistedLastPollMs(nowMs);
     } finally {
       this.refreshing = false;
       if (this.queuedRefresh) {

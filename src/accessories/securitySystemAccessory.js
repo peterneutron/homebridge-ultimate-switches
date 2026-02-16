@@ -1,6 +1,7 @@
 'use strict';
 
 const { bindOnGet, bindOnSet } = require('../hapBinding');
+const { logTransition } = require('../logger');
 
 class SecuritySystemAccessory {
   constructor(api, log, accessory, options, coordinator) {
@@ -52,6 +53,37 @@ class SecuritySystemAccessory {
       return current.NIGHT_ARM;
     }
     return current.DISARMED;
+  }
+
+  targetLabel(value) {
+    const target = this.api.hap.Characteristic.SecuritySystemTargetState;
+    if (value === target.AWAY_ARM) {
+      return 'ARM_AWAY';
+    }
+    if (value === target.STAY_ARM) {
+      return 'ARM_STAY';
+    }
+    if (value === target.NIGHT_ARM) {
+      return 'ARM_NIGHT';
+    }
+    return 'DISARMED';
+  }
+
+  currentLabel(value) {
+    const current = this.api.hap.Characteristic.SecuritySystemCurrentState;
+    if (value === current.AWAY_ARM) {
+      return 'ARM_AWAY';
+    }
+    if (value === current.STAY_ARM) {
+      return 'ARM_STAY';
+    }
+    if (value === current.NIGHT_ARM) {
+      return 'ARM_NIGHT';
+    }
+    if (value === current.ALARM_TRIGGERED) {
+      return 'ALARM_TRIGGERED';
+    }
+    return 'DISARMED';
   }
 
   configure() {
@@ -153,9 +185,28 @@ class SecuritySystemAccessory {
 
   async setTargetState(value) {
     await this.coordinator.run(this.accessory.UUID, async () => {
+      const previousTarget = this.state.targetState;
+      const previousCurrent = this.deriveCurrentState();
       this.state.targetState = value;
       this.persistState();
       this.publishState();
+      const nextCurrent = this.deriveCurrentState();
+      logTransition(
+        this.log,
+        'Security',
+        this.options.name,
+        this.targetLabel(previousTarget),
+        this.targetLabel(this.state.targetState),
+        'manual',
+      );
+      logTransition(
+        this.log,
+        'Security',
+        this.options.name,
+        this.currentLabel(previousCurrent),
+        this.currentLabel(nextCurrent),
+        'manual',
+      );
       this.log.debug('[Security:%s] Target state set to %s', this.options.name, value);
     });
   }
@@ -167,9 +218,19 @@ class SecuritySystemAccessory {
 
   async setZoneAlarm(zone, value) {
     await this.coordinator.run(this.accessory.UUID, async () => {
+      const previousCurrent = this.deriveCurrentState();
       this.state.zonesAlarm[zone] = value;
       this.persistState();
       this.publishState();
+      const nextCurrent = this.deriveCurrentState();
+      logTransition(
+        this.log,
+        'Security',
+        this.options.name,
+        this.currentLabel(previousCurrent),
+        this.currentLabel(nextCurrent),
+        'zone',
+      );
       this.log.debug('[Security:%s] Zone %s alarm set to %s', this.options.name, zone, value);
     });
   }

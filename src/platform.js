@@ -36,6 +36,7 @@ class UltimateSwitchesPlatform {
     this.cachedAccessories = new Map();
     this.liveAccessories = new Map();
     this.calendarEngines = new Map();
+    this.calendarAccessoryContexts = new Map();
     this.operationCoordinator = new OperationCoordinator();
 
     try {
@@ -106,6 +107,10 @@ class UltimateSwitchesPlatform {
       }
 
       applyAccessoryInformation(this.api, accessory, descriptor.kind);
+
+      if (descriptor.kind === 'calendarRoot') {
+        this.calendarAccessoryContexts.set(descriptor.config.name, accessory.context);
+      }
 
       const instance = this.createAccessoryInstance(descriptor, accessory);
       if (!instance) {
@@ -213,7 +218,20 @@ class UltimateSwitchesPlatform {
   getCalendarEngine(calendarConfig) {
     const key = calendarConfig.name;
     if (!this.calendarEngines.has(key)) {
-      this.calendarEngines.set(key, new CalendarEngine(this.log, calendarConfig));
+      const context = this.calendarAccessoryContexts.get(key) || {};
+      this.calendarEngines.set(key, new CalendarEngine(
+        this.log,
+        calendarConfig,
+        null,
+        () => Date.now(),
+        {},
+        {
+          getPersistedLastPollMs: () => context.calendarLastPollMs ?? null,
+          setPersistedLastPollMs: (ms) => {
+            context.calendarLastPollMs = ms;
+          },
+        },
+      ));
     }
     return this.calendarEngines.get(key);
   }

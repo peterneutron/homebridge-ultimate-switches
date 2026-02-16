@@ -60,17 +60,20 @@ function createMockAccessory(api) {
   };
 }
 
-function logger() {
-  return { debug() {}, info() {}, warn() {}, error() {} };
-}
-
 test('lock defaults to configured defaultState and updates both lock characteristics', async () => {
   const api = createMockApi();
   const accessory = createMockAccessory(api);
+  const info = [];
+  const logger = {
+    debug() {},
+    info: (...args) => info.push(args),
+    warn() {},
+    error() {},
+  };
 
   const instance = new LockAccessory(
     api,
-    logger(),
+    logger,
     accessory,
     { name: 'Front Door', defaultState: 'locked' },
     new OperationCoordinator(),
@@ -84,4 +87,8 @@ test('lock defaults to configured defaultState and updates both lock characteris
   assert.equal(instance.targetState, 0);
   assert.equal(instance.currentState, 0);
   assert.equal(accessory.context.lockTargetState, 0);
+  assert.equal(
+    info.some((args) => args[0] === '[%s:%s] State %s -> %s (%s)' && args[1] === 'Lock' && args[2] === 'Front Door'),
+    true,
+  );
 });

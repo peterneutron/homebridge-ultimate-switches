@@ -1,6 +1,7 @@
 'use strict';
 
 const { bindOnGet, bindOnSet } = require('../hapBinding');
+const { formatBoolState, logTransition } = require('../logger');
 
 class BasicSwitchAccessory {
   constructor(api, log, accessory, options, coordinator) {
@@ -32,9 +33,18 @@ class BasicSwitchAccessory {
 
   setState(value) {
     return this.coordinator.run(this.accessory.UUID, async () => {
+      const previous = this.state;
       this.state = value;
       this.accessory.context.state = value;
       this.service.updateCharacteristic(this.api.hap.Characteristic.On, value);
+      logTransition(
+        this.log,
+        'Switch',
+        this.options.name,
+        formatBoolState('switch', previous),
+        formatBoolState('switch', value),
+        'manual',
+      );
       this.log.debug('[Switch:%s] State set to %s', this.options.name, value);
     });
   }

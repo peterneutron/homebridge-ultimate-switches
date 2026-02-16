@@ -614,12 +614,19 @@ function validate(data) {
 
   if (data.contextSensor?.enabled) {
     const lat = Number(data.contextSensor.latitude);
-    const lon = Number(data.contextSensor.longitude);
     if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
       errors.push('contextSensor.latitude must be a number between -90 and 90 when enabled');
     }
+    if (data.contextSensor.longitude !== undefined && data.contextSensor.longitude !== '') {
+      const lon = Number(data.contextSensor.longitude);
+      if (!Number.isFinite(lon) || lon < -180 || lon > 180) {
+        errors.push('contextSensor.longitude must be a number between -180 and 180 when provided');
+      }
+    }
+  } else if (data.contextSensor?.longitude !== undefined && data.contextSensor.longitude !== '') {
+    const lon = Number(data.contextSensor.longitude);
     if (!Number.isFinite(lon) || lon < -180 || lon > 180) {
-      errors.push('contextSensor.longitude must be a number between -180 and 180 when enabled');
+      errors.push('contextSensor.longitude must be a number between -180 and 180 when provided');
     }
   }
 

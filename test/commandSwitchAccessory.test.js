@@ -80,6 +80,23 @@ function createLogger() {
   return { debug() {}, info() {}, warn() {}, error() {} };
 }
 
+function createLogSink() {
+  const info = [];
+  const debug = [];
+  const warn = [];
+  return {
+    info,
+    debug,
+    warn,
+    logger: {
+      info: (...args) => info.push(args),
+      debug: (...args) => debug.push(args),
+      warn: (...args) => warn.push(args),
+      error() {},
+    },
+  };
+}
+
 test('setState executes on/off commands and updates state', async () => {
   const api = createMockApi();
   const accessory = createMockAccessory(api);
@@ -295,4 +312,57 @@ test('autoOff with failing offCommand keeps switch on', async () => {
   tasks.get(autoOffId)();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(instance.state, true);
+});
+
+test('command switch emits INFO transitions and auto-off lifecycle logs', async () => {
+  const api = createMockApi();
+  const accessory = createMockAccessory(api);
+  const tasks = new Map();
+  let taskId = 1;
+  const logs = createLogSink();
+
+  const timers = {
+    setTimeout(fn) {
+      const id = taskId++;
+      tasks.set(id, fn);
+      return id;
+    },
+    clearTimeout(id) {
+      tasks.delete(id);
+    },
+  };
+
+  const instance = new CommandSwitchAccessory(
+    api,
+    logs.logger,
+    accessory,
+    {
+      name: 'Cmd',
+      onCommand: 'on-cmd',
+      polling: false,
+      pollIntervalSeconds: 5,
+      commandTimeoutSeconds: 5,
+      autoOffSeconds: 5,
+    },
+    new OperationCoordinator(),
+    async () => {},
+    timers,
+  );
+
+  instance.configure();
+  await instance.setState(true);
+  await instance.setState(false);
+
+  assert.equal(
+    logs.info.some((args) => args[0] === '[CommandSwitch:%s] Auto-off scheduled in %ds' && args[1] === 'Cmd' && args[2] === 5),
+    true,
+  );
+  assert.equal(
+    logs.info.some((args) => args[0] === '[CommandSwitch:%s] Auto-off cancelled' && args[1] === 'Cmd'),
+    true,
+  );
+  assert.equal(
+    logs.info.some((args) => args[0] === '[%s:%s] State %s -> %s (%s)' && args[1] === 'CommandSwitch'),
+    true,
+  );
 });

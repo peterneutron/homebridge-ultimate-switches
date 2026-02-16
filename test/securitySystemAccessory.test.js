@@ -84,17 +84,20 @@ function createMockAccessory() {
   };
 }
 
-function logger() {
-  return { debug() {}, info() {}, warn() {}, error() {} };
-}
-
 test('security system arms and zone alarms produce alarm triggered state', async () => {
   const api = createMockApi();
   const accessory = createMockAccessory();
+  const info = [];
+  const logger = {
+    debug() {},
+    info: (...args) => info.push(args),
+    warn() {},
+    error() {},
+  };
 
   const instance = new SecuritySystemAccessory(
     api,
-    logger(),
+    logger,
     accessory,
     {
       name: 'House Security',
@@ -114,4 +117,8 @@ test('security system arms and zone alarms produce alarm triggered state', async
 
   await instance.setArmState(false, api.hap.Characteristic.SecuritySystemTargetState.AWAY_ARM);
   assert.equal(instance.deriveCurrentState(), api.hap.Characteristic.SecuritySystemCurrentState.DISARMED);
+  assert.equal(
+    info.some((args) => args[0] === '[%s:%s] State %s -> %s (%s)' && args[1] === 'Security' && args[2] === 'House Security'),
+    true,
+  );
 });

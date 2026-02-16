@@ -2,6 +2,7 @@
 
 const { bindOnGet, bindOnSet } = require('../hapBinding');
 const { runShellCommand } = require('../commandExecutor');
+const { formatBoolState, logTransition } = require('../logger');
 
 class CommandSwitchAccessory {
   constructor(api, log, accessory, options, coordinator, executor = runShellCommand, timers = {}, randomFn = Math.random) {
@@ -67,11 +68,16 @@ class CommandSwitchAccessory {
     if (!Number.isFinite(Number(this.options.autoOffSeconds)) || Number(this.options.autoOffSeconds) <= 0) {
       return;
     }
+    if (this.autoOffTimer) {
+      this.log.debug('[CommandSwitch:%s] Replacing existing auto-off timer', this.options.name);
+    }
     this.clearAutoOffTimer();
-    const delayMs = Number(this.options.autoOffSeconds) * 1000;
+    const delaySeconds = Number(this.options.autoOffSeconds);
+    const delayMs = delaySeconds * 1000;
+    this.log.info('[CommandSwitch:%s] Auto-off scheduled in %ds', this.options.name, delaySeconds);
     this.autoOffTimer = this.setTimeoutFn(() => {
       this.autoOffTimer = null;
-      void this.setState(false).catch((error) => {
+      void this.setState(false, 'auto-off').catch((error) => {
         this.log.warn('[CommandSwitch:%s] Auto-off failed: %s', this.options.name, error.message);
       });
     }, delayMs);
@@ -99,20 +105,53 @@ class CommandSwitchAccessory {
   }
 
   async pollOnceAndReschedule() {
+    const startedAt = Date.now();
     try {
       await this.pollState();
       this.consecutivePollFailures = 0;
+      this.log.debug('[CommandSwitch:%s] Poll succeeded in %dms', this.options.name, Date.now() - startedAt);
     } catch (error) {
       this.consecutivePollFailures += 1;
       this.log.debug('[CommandSwitch:%s] Poll failed: %s', this.options.name, error.message);
     } finally {
       if (!this.stopped) {
-        this.scheduleNextPoll(this.computeNextPollDelayMs());
+        const nextDelay = this.computeNextPollDelayMs();
+        this.log.debug(
+          '[CommandSwitch:%s] Next poll in %dms (failures=%d)',
+          this.options.name,
+          nextDelay,
+          this.consecutivePollFailures,
+        );
+        this.scheduleNextPoll(nextDelay);
       }
     }
   }
 
-  async setState(targetState) {
+  async executeCommandWithDebug(command, timeoutSeconds, source) {
+    const startedAt = Date.now();
+    try {
+      await this.executor(command, timeoutSeconds);
+      this.log.debug(
+        '[CommandSwitch:%s] Command succeeded (%s) in %dms (timeout=%ss)',
+        this.options.name,
+        source,
+        Date.now() - startedAt,
+        timeoutSeconds,
+      );
+    } catch (error) {
+      this.log.debug(
+        '[CommandSwitch:%s] Command failed (%s) in %dms (timeout=%ss): %s',
+        this.options.name,
+        source,
+        Date.now() - startedAt,
+        timeoutSeconds,
+        error.message,
+      );
+      throw error;
+    }
+  }
+
+  async setState(targetState, source = 'manual') {
     if (this.stopped) {
       return;
     }
@@ -120,9 +159,12 @@ class CommandSwitchAccessory {
     await this.coordinator.run(this.accessory.UUID, async () => {
       const command = targetState ? this.options.onCommand : this.options.offCommand;
       if (targetState || command) {
-        await this.executor(command, this.options.commandTimeoutSeconds);
+        await this.executeCommandWithDebug(command, this.options.commandTimeoutSeconds, source);
       }
-      this.updateState(targetState, 'set');
+      if (!targetState && source !== 'auto-off' && this.autoOffTimer) {
+        this.log.info('[CommandSwitch:%s] Auto-off cancelled', this.options.name);
+      }
+      this.updateState(targetState, source);
       if (targetState) {
         this.scheduleAutoOff();
       } else {
@@ -141,7 +183,7 @@ class CommandSwitchAccessory {
     await this.coordinator.run(this.accessory.UUID, async () => {
       let nextState = false;
       try {
-        await this.executor(this.options.stateCommand, this.options.commandTimeoutSeconds);
+        await this.executeCommandWithDebug(this.options.stateCommand, this.options.commandTimeoutSeconds, 'poll');
         nextState = true;
       } catch (error) {
         nextState = false;
@@ -158,9 +200,19 @@ class CommandSwitchAccessory {
       return;
     }
 
+    const previous = this.state;
     this.state = value;
     this.accessory.context.state = value;
     this.service.updateCharacteristic(this.api.hap.Characteristic.On, value);
+    const reason = source === 'poll' ? 'poll' : (source === 'auto-off' ? 'auto-off' : 'manual');
+    logTransition(
+      this.log,
+      'CommandSwitch',
+      this.options.name,
+      formatBoolState('switch', previous),
+      formatBoolState('switch', value),
+      reason,
+    );
     this.log.debug('[CommandSwitch:%s] State -> %s (%s)', this.options.name, value, source);
   }
 

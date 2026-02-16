@@ -118,6 +118,25 @@ function logger() {
   return { debug() {}, info() {}, warn() {}, error() {} };
 }
 
+function createLogSink() {
+  const info = [];
+  const debug = [];
+  const warn = [];
+  const error = [];
+  return {
+    info,
+    debug,
+    warn,
+    error,
+    logger: {
+      info: (...args) => info.push(args),
+      debug: (...args) => debug.push(args),
+      warn: (...args) => warn.push(args),
+      error: (...args) => error.push(args),
+    },
+  };
+}
+
 test('calendar engine computes root/event states and progress', async () => {
   const scheduler = createFakeScheduler();
   const now = Date.parse('2026-02-15T12:00:00Z');
@@ -196,6 +215,137 @@ test('calendar engine notification pulse activates then resets', async () => {
   const pulseId = Math.max(...scheduler.ids());
   scheduler.run(pulseId);
   assert.equal(engine.getNotificationState(notificationKey), false);
+});
+
+test('calendar engine fires negative start-offset notifications before event start', async () => {
+  const scheduler = createFakeScheduler();
+  const start = Date.parse('2026-02-15T12:00:00Z');
+  const now = start - 4 * 60 * 1000;
+
+  const engine = new CalendarEngine(
+    logger(),
+    {
+      name: 'Developer',
+      url: 'https://example.invalid/ics',
+      updateIntervalMinutes: 60,
+      requestTimeoutSeconds: 15,
+      updateButton: false,
+      triggerOnUpdates: false,
+      triggerOnAnyEvent: false,
+      events: [{
+        name: '^Meeting$',
+        triggerOnUpdates: false,
+        notifications: [{ name: 'PreStart', startOffsetMinutes: -5 }],
+      }],
+    },
+    {
+      listEvents: async () => [{
+        summary: 'Meeting',
+        startMs: start,
+        endMs: start + 60 * 60 * 1000,
+      }],
+    },
+    () => now,
+    scheduler,
+  );
+
+  await engine.refreshNow();
+
+  const notificationKey = 'calendarNotification:Developer:^Meeting$:PreStart';
+  assert.equal(engine.getNotificationState(notificationKey), true);
+});
+
+test('calendar engine replays missed boundaries from persisted poll timestamp', async () => {
+  const scheduler = createFakeScheduler();
+  const start = Date.parse('2026-02-15T12:00:00Z');
+  const now = start - 4 * 60 * 1000;
+  let persistedPollMs = now - 2 * 60 * 1000;
+
+  const engine = new CalendarEngine(
+    logger(),
+    {
+      name: 'Developer',
+      url: 'https://example.invalid/ics',
+      updateIntervalMinutes: 60,
+      requestTimeoutSeconds: 15,
+      updateButton: false,
+      triggerOnUpdates: false,
+      triggerOnAnyEvent: false,
+      events: [{
+        name: '^Meeting$',
+        triggerOnUpdates: false,
+        notifications: [{ name: 'PreStart', startOffsetMinutes: -5 }],
+      }],
+    },
+    {
+      listEvents: async () => [{
+        summary: 'Meeting',
+        startMs: start,
+        endMs: start + 60 * 60 * 1000,
+      }],
+    },
+    () => now,
+    scheduler,
+    {
+      getPersistedLastPollMs: () => persistedPollMs,
+      setPersistedLastPollMs: (ms) => {
+        persistedPollMs = ms;
+      },
+    },
+  );
+
+  await engine.refreshNow();
+
+  const notificationKey = 'calendarNotification:Developer:^Meeting$:PreStart';
+  assert.equal(engine.getNotificationState(notificationKey), true);
+  assert.equal(persistedPollMs, now);
+});
+
+test('calendar engine caps replay window to 24h for stale persisted timestamp', async () => {
+  const scheduler = createFakeScheduler();
+  const start = Date.parse('2026-02-15T12:00:00Z');
+  const now = start;
+  const twoDays = 48 * 60 * 60 * 1000;
+  let persistedPollMs = now - twoDays;
+
+  const engine = new CalendarEngine(
+    logger(),
+    {
+      name: 'Developer',
+      url: 'https://example.invalid/ics',
+      updateIntervalMinutes: 60,
+      requestTimeoutSeconds: 15,
+      updateButton: false,
+      triggerOnUpdates: false,
+      triggerOnAnyEvent: false,
+      events: [{
+        name: '^Meeting$',
+        triggerOnUpdates: false,
+        notifications: [{ name: 'HugeOffset', startOffsetMinutes: -(36 * 60) }],
+      }],
+    },
+    {
+      listEvents: async () => [{
+        summary: 'Meeting',
+        startMs: start,
+        endMs: start + 60 * 60 * 1000,
+      }],
+    },
+    () => now,
+    scheduler,
+    {
+      getPersistedLastPollMs: () => persistedPollMs,
+      setPersistedLastPollMs: (ms) => {
+        persistedPollMs = ms;
+      },
+    },
+  );
+
+  await engine.refreshNow();
+
+  const notificationKey = 'calendarNotification:Developer:^Meeting$:HugeOffset';
+  assert.equal(engine.getNotificationState(notificationKey), false);
+  assert.equal(persistedPollMs, now);
 });
 
 test('calendar root accessory removes legacy child services on cached accessory reuse', () => {
@@ -286,5 +436,81 @@ test('calendar accessories expose active state as contact open semantics', () =>
   assert.equal(
     notification.toContactState(false),
     api.hap.Characteristic.ContactSensorState.CONTACT_DETECTED,
+  );
+});
+
+test('calendar engine logs INFO event delta only when delta exists', async () => {
+  const scheduler = createFakeScheduler();
+  const sink = createLogSink();
+  const now = Date.parse('2026-02-15T12:00:00Z');
+  const events = [{
+    summary: 'Meeting',
+    startMs: now - 30 * 60 * 1000,
+    endMs: now + 30 * 60 * 1000,
+  }];
+
+  const engine = new CalendarEngine(
+    sink.logger,
+    {
+      name: 'Developer',
+      url: 'https://example.invalid/ics',
+      updateIntervalMinutes: 60,
+      requestTimeoutSeconds: 15,
+      updateButton: false,
+      triggerOnUpdates: false,
+      triggerOnAnyEvent: true,
+      events: [],
+    },
+    {
+      listEvents: async () => events,
+    },
+    () => now,
+    scheduler,
+  );
+
+  await engine.refreshNow();
+  await engine.refreshNow();
+
+  const deltaLogs = sink.info.filter((args) => args[0] === '[Calendar:%s] Event delta: %s');
+  assert.equal(deltaLogs.length, 1);
+});
+
+test('calendar engine logs INFO when notifications fire', async () => {
+  const scheduler = createFakeScheduler();
+  const sink = createLogSink();
+  const start = Date.parse('2026-02-15T12:00:00Z');
+  const now = start - (4 * 60 * 1000);
+
+  const engine = new CalendarEngine(
+    sink.logger,
+    {
+      name: 'Developer',
+      url: 'https://example.invalid/ics',
+      updateIntervalMinutes: 60,
+      requestTimeoutSeconds: 15,
+      updateButton: false,
+      triggerOnUpdates: false,
+      triggerOnAnyEvent: false,
+      events: [{
+        name: '^Meeting$',
+        triggerOnUpdates: false,
+        notifications: [{ name: 'PreStart', startOffsetMinutes: -5 }],
+      }],
+    },
+    {
+      listEvents: async () => [{
+        summary: 'Meeting',
+        startMs: start,
+        endMs: start + 60 * 60 * 1000,
+      }],
+    },
+    () => now,
+    scheduler,
+  );
+
+  await engine.refreshNow();
+  assert.equal(
+    sink.info.some((args) => args[0] === '[Calendar:%s] Notifications fired: %d' && args[1] === 'Developer' && args[2] === 1),
+    true,
   );
 });

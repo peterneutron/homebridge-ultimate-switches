@@ -253,10 +253,6 @@ function normalizeContextSensor(raw) {
     if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
       throw new ValidationError('contextSensor.latitude must be a number between -90 and 90 when enabled');
     }
-
-    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-      throw new ValidationError('contextSensor.longitude must be a number between -180 and 180 when enabled');
-    }
   }
 
   return {

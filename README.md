@@ -57,6 +57,7 @@ npm test
 - Calendar parsing uses `node-ical` (installed as dependency).
 - `webcal://` URLs are supported and normalized to `https://` at runtime.
 - Calendar fetches are timeout-bounded (`calendarTriggers[].requestTimeoutSeconds`).
+- Calendar engines persist last successful poll timestamp in cached accessory context and replay missed boundaries on restart (bounded to 24h catch-up window).
 - Calendar trigger config UI is schema-driven; nested watched events and notifications are edited via auto-rendered nested array controls.
 - When `calendarTriggers[].triggerOnAnyEvent` is `false`, at least one `calendarTriggers[].events[]` regex pattern is required.
 - Calendar triggers are exposed as separate accessories for reliable HomeKit naming:
@@ -65,6 +66,9 @@ npm test
 - notification accessory (`calendar name + event label + notification name`)
 - Calendar contact semantics: active calendar states are exposed as Contact Open (`CONTACT_NOT_DETECTED`) and inactive states as Contact Closed (`CONTACT_DETECTED`).
 - `debug: false` keeps logs minimal at info/warn/error level; set `debug: true` to enable verbose debug logs.
+- Logging policy:
+- INFO is change-focused: accessory state transitions, command auto-off lifecycle, calendar event deltas, and fired notification counts.
+- DEBUG includes internals: polling/backoff timings, calendar refresh windows/delta detail, and zone-level/security internals.
 - Command switches:
 - `onCommand` is required; `offCommand` and `stateCommand` are optional.
 - If `polling=true`, `stateCommand` is required.
@@ -73,7 +77,7 @@ npm test
 - No runtime pruning: partially configured rows fail fast with explicit validation errors.
 - Custom UI creates rows only through explicit `Add ...` actions, so empty template rows are not auto-persisted.
 - Custom UI uses native Homebridge Save only (no plugin-local save button); validation is live and invalid configs disable native Save.
-- `contextSensor.latitude` and `contextSensor.longitude` are required only when `contextSensor.enabled` is `true`.
+- `contextSensor.latitude` is required only when `contextSensor.enabled` is `true`; `longitude` is optional and currently informational.
 - Accessory metadata is auto-generated for all accessory kinds:
 - `Manufacturer`: `Ultimate Switches`
 - `Model`: type label (for example `Command Switch`, `Timer Switch`, `Calendar Trigger`)

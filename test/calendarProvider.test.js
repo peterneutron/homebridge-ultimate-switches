@@ -12,7 +12,7 @@ test('normalizeCalendarUrl converts webcal to https', () => {
 });
 
 
-test('listEvents passes normalized URL to fetch and parses fallback ICS', async () => {
+test('listEvents passes normalized URL to fetch and parses ICS via node-ical', async () => {
   const calls = [];
   const provider = new CalendarProvider(
     { debug() {} },
@@ -36,4 +36,21 @@ test('listEvents passes normalized URL to fetch and parses fallback ICS', async 
   assert.equal(calls[0], 'https://example.com/test.ics');
   assert.equal(events.length, 1);
   assert.equal(events[0].summary, 'Test Event');
+});
+
+test('listEvents surfaces parser failures with calendar URL context', async () => {
+  const provider = new CalendarProvider(
+    { debug() {} },
+    async () => 'BEGIN:VCALENDAR\nEND:VCALENDAR\n',
+  );
+  provider.nodeIcal = {
+    parseICS() {
+      throw new Error('boom');
+    },
+  };
+
+  await assert.rejects(
+    provider.listEvents('webcal://example.com/test.ics'),
+    /Calendar parse failed for https:\/\/example.com\/test\.ics: boom/,
+  );
 });

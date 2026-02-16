@@ -1,6 +1,7 @@
 'use strict';
 
 const { bindOnGet, bindOnSet } = require('../hapBinding');
+const { formatBoolState, logTransition } = require('../logger');
 
 class TimerSwitchAccessory {
   constructor(api, log, accessory, options, coordinator, timers = {}) {
@@ -55,7 +56,7 @@ class TimerSwitchAccessory {
     }
   }
 
-  async setState(value) {
+  async setState(value, source = 'manual') {
     if (this.stopped) {
       return;
     }
@@ -65,6 +66,7 @@ class TimerSwitchAccessory {
         return;
       }
 
+      const previous = this.state;
       this.state = value;
       this.accessory.context.state = value;
       this.switchService.updateCharacteristic(this.api.hap.Characteristic.On, value);
@@ -75,12 +77,22 @@ class TimerSwitchAccessory {
         this.clearCycleTimer();
       }
 
+      logTransition(
+        this.log,
+        'Timer',
+        this.options.name,
+        formatBoolState('timer', previous),
+        formatBoolState('timer', value),
+        source,
+      );
       this.log.debug('[Timer:%s] State set to %s', this.options.name, value);
     });
   }
 
   scheduleNextCycle() {
     this.clearCycleTimer();
+    const nextAt = Date.now() + (this.options.periodSeconds * 1000);
+    this.log.debug('[Timer:%s] Next cycle in %ds at %s', this.options.name, this.options.periodSeconds, new Date(nextAt).toISOString());
     this.timerHandle = this.setTimeoutFn(() => {
       this.handleCycle().catch((error) => {
         this.log.debug('[Timer:%s] Cycle failed: %s', this.options.name, error.message);
@@ -118,9 +130,18 @@ class TimerSwitchAccessory {
       }
 
       if (this.options.autoOff) {
+        const previous = this.state;
         this.state = false;
         this.accessory.context.state = false;
         this.switchService.updateCharacteristic(this.api.hap.Characteristic.On, false);
+        logTransition(
+          this.log,
+          'Timer',
+          this.options.name,
+          formatBoolState('timer', previous),
+          formatBoolState('timer', false),
+          'timer-cycle',
+        );
       } else {
         this.scheduleNextCycle();
       }
@@ -128,12 +149,14 @@ class TimerSwitchAccessory {
   }
 
   emitMotionPulse() {
+    this.log.debug('[Timer:%s] Motion pulse emitted', this.options.name);
     this.motionService.updateCharacteristic(this.api.hap.Characteristic.MotionDetected, true);
     this.clearPulseTimer();
     this.pulseHandle = this.setTimeoutFn(() => {
       if (this.motionService) {
         this.motionService.updateCharacteristic(this.api.hap.Characteristic.MotionDetected, false);
       }
+      this.log.debug('[Timer:%s] Motion pulse reset', this.options.name);
       this.pulseHandle = null;
     }, 1000);
   }

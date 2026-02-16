@@ -341,7 +341,7 @@
               }
             },
             "then": {
-              "required": ["latitude", "longitude"]
+              "required": ["latitude"]
             }
           }
         ],

@@ -101,6 +101,21 @@ function logger() {
   return { debug() {}, info() {}, warn() {}, error() {} };
 }
 
+function createLogSink() {
+  const info = [];
+  const debug = [];
+  return {
+    info,
+    debug,
+    logger: {
+      info: (...args) => info.push(args),
+      debug: (...args) => debug.push(args),
+      warn() {},
+      error() {},
+    },
+  };
+}
+
 test('autoOff timer turns switch off after cycle', async () => {
   const api = createMockApi();
   const accessory = createMockAccessory(api);
@@ -200,4 +215,35 @@ test('stop clears all timers', async () => {
 
   instance.stop();
   assert.equal(scheduler.size(), 0);
+});
+
+test('timer emits INFO transitions for manual and timer-cycle changes', async () => {
+  const api = createMockApi();
+  const accessory = createMockAccessory(api);
+  const scheduler = createFakeScheduler();
+  const logs = createLogSink();
+
+  const instance = new TimerSwitchAccessory(
+    api,
+    logs.logger,
+    accessory,
+    { name: 'Timer', periodSeconds: 1, autoOff: true, emitMotionPulse: false },
+    new OperationCoordinator(),
+    scheduler,
+  );
+
+  instance.configure();
+  await instance.setState(true);
+  const cycleId = scheduler.ids()[0];
+  scheduler.runOne(cycleId);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(
+    logs.info.some((args) => args[0] === '[%s:%s] State %s -> %s (%s)' && args[1] === 'Timer' && args[5] === 'manual'),
+    true,
+  );
+  assert.equal(
+    logs.info.some((args) => args[0] === '[%s:%s] State %s -> %s (%s)' && args[1] === 'Timer' && args[5] === 'timer-cycle'),
+    true,
+  );
 });
