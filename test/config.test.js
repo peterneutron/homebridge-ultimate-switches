@@ -346,6 +346,60 @@ test('normalizeConfig validates regex syntax and webhook fields', () => {
   }), ValidationError);
 });
 
+test('normalizeConfig supports command action match object and rejects mixed legacy match fields', () => {
+  const config = normalizeConfig({
+    commandSwitches: [{
+      name: 'Cmd',
+      on: {
+        input: 'echo on',
+        match: {
+          pattern: 'POWER=ON',
+          mode: 'regex',
+          flags: 'i',
+          invert: false,
+        },
+      },
+    }],
+  });
+
+  assert.equal(config.commandSwitches[0].actions.on.match.pattern, 'POWER=ON');
+  assert.equal(config.commandSwitches[0].actions.on.match.flags, 'i');
+
+  assert.throws(() => normalizeConfig({
+    commandSwitches: [{
+      name: 'Broken',
+      on: {
+        input: 'echo on',
+        match: { pattern: 'x' },
+        matchPattern: 'x',
+      },
+    }],
+  }), ValidationError);
+});
+
+test('normalizeConfig supports calendar event explicit match object and preserves legacy fallback behavior', () => {
+  const config = normalizeConfig({
+    calendarTriggers: [{
+      name: 'Cal',
+      url: 'https://example.invalid/test.ics',
+      triggerOnAnyEvent: false,
+      events: [{
+        name: 'Display Name',
+        match: {
+          pattern: '^(GF|GFW|GT|GTW)$',
+          mode: 'regex',
+          flags: '',
+          onInvalid: 'literal-fallback',
+        },
+      }],
+    }],
+  });
+
+  assert.equal(config.calendarTriggers[0].events[0].name, 'Display Name');
+  assert.equal(config.calendarTriggers[0].events[0].match.pattern, '^(GF|GFW|GT|GTW)$');
+  assert.equal(config.calendarTriggers[0].events[0].match.onInvalid, 'literal-fallback');
+});
+
 test('normalizeConfig requires watched events when triggerOnAnyEvent is false', () => {
   assert.throws(() => normalizeConfig({
     calendarTriggers: [{

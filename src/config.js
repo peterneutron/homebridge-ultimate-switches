@@ -98,6 +98,65 @@ function validateRegexConfig(path, pattern, flags) {
   }
 }
 
+function normalizeRegexSpec(raw, path, options = {}) {
+  const {
+    defaultMode = 'regex',
+    defaultInvert = false,
+    defaultOnInvalid = 'error',
+    allowOnInvalid = false,
+  } = options;
+
+  if (!isPlainObject(raw)) {
+    throw new ValidationError(`${path} must be an object`);
+  }
+  if (!isNonEmptyString(raw.pattern)) {
+    throw new ValidationError(`${path}.pattern is required`);
+  }
+
+  const mode = isNonEmptyString(raw.mode) ? raw.mode.trim() : defaultMode;
+  if (!['regex', 'literal'].includes(mode)) {
+    throw new ValidationError(`${path}.mode must be regex or literal`);
+  }
+
+  const flags = raw.flags === undefined ? '' : raw.flags;
+  if (typeof flags !== 'string') {
+    throw new ValidationError(`${path}.flags must be a string`);
+  }
+
+  const onInvalid = raw.onInvalid === undefined ? defaultOnInvalid : raw.onInvalid;
+  if (allowOnInvalid) {
+    if (!['error', 'literal-fallback'].includes(onInvalid)) {
+      throw new ValidationError(`${path}.onInvalid must be error or literal-fallback`);
+    }
+  } else if (raw.onInvalid !== undefined) {
+    throw new ValidationError(`${path}.onInvalid is not supported here`);
+  }
+
+  if (mode === 'regex') {
+    try {
+      compileRegexOrThrow(raw.pattern.trim(), flags, path);
+    } catch (error) {
+      if (!(allowOnInvalid && onInvalid === 'literal-fallback')) {
+        throw new ValidationError(`${path}.pattern is invalid: ${error.message}`);
+      }
+    }
+  } else if (flags) {
+    try {
+      compileRegexOrThrow('^x$', flags, path);
+    } catch (error) {
+      throw new ValidationError(`${path}.flags is invalid: ${error.message}`);
+    }
+  }
+
+  return {
+    pattern: raw.pattern.trim(),
+    mode,
+    flags,
+    invert: toBoolean(raw.invert, defaultInvert),
+    onInvalid,
+  };
+}
+
 function normalizeActionValue(rawValue, path) {
   if (rawValue === undefined) {
     return undefined;
@@ -137,13 +196,37 @@ function normalizeActionValue(rawValue, path) {
     matchInvert: toBoolean(source.matchInvert, false),
   };
 
-  if (source.matchPattern !== undefined) {
+  if (source.match !== undefined && (source.matchPattern !== undefined || source.matchFlags !== undefined || source.matchInvert !== undefined)) {
+    throw new ValidationError(`${path}.match cannot be combined with matchPattern/matchFlags/matchInvert`);
+  }
+
+  if (source.match !== undefined) {
+    normalized.match = normalizeRegexSpec(source.match, `${path}.match`, {
+      defaultMode: 'regex',
+      defaultInvert: false,
+      defaultOnInvalid: 'error',
+      allowOnInvalid: true,
+    });
+    if (normalized.match.onInvalid !== 'error') {
+      throw new ValidationError(`${path}.match.onInvalid must be error`);
+    }
+    normalized.matchPattern = normalized.match.pattern;
+    normalized.matchFlags = normalized.match.flags || undefined;
+    normalized.matchInvert = normalized.match.invert;
+  } else if (source.matchPattern !== undefined) {
     if (!isNonEmptyString(source.matchPattern)) {
       throw new ValidationError(`${path}.matchPattern must be a non-empty string when provided`);
     }
     normalized.matchPattern = source.matchPattern.trim();
     normalized.matchFlags = typeof source.matchFlags === 'string' ? source.matchFlags : undefined;
     validateRegexConfig(path, normalized.matchPattern, normalized.matchFlags);
+    normalized.match = {
+      pattern: normalized.matchPattern,
+      mode: 'regex',
+      flags: normalized.matchFlags || '',
+      invert: normalized.matchInvert,
+      onInvalid: 'error',
+    };
   } else if (source.matchFlags !== undefined) {
     throw new ValidationError(`${path}.matchFlags requires matchPattern`);
   }
@@ -407,8 +490,28 @@ function normalizeCalendarEvents(raw, path) {
       throw new ValidationError(`${path}[${index}].name is required`);
     }
 
+    if (item?.match !== undefined && !isPlainObject(item.match)) {
+      throw new ValidationError(`${path}[${index}].match must be an object`);
+    }
+
+    const matcher = item?.match !== undefined
+      ? normalizeRegexSpec(item.match, `${path}[${index}].match`, {
+        defaultMode: 'regex',
+        defaultInvert: false,
+        defaultOnInvalid: 'error',
+        allowOnInvalid: true,
+      })
+      : {
+        pattern: item.name.trim(),
+        mode: 'regex',
+        flags: '',
+        invert: false,
+        onInvalid: 'literal-fallback',
+      };
+
     return {
       name: item.name.trim(),
+      match: matcher,
       triggerOnUpdates: toBoolean(item.triggerOnUpdates, true),
       notifications: normalizeNotifications(item.notifications, `${path}[${index}].notifications`),
     };

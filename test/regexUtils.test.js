@@ -9,6 +9,7 @@ const {
   compileRegexOrThrow,
   compileRegexWithFallback,
   testRegexMatch,
+  compileRegexSpec,
 } = require('../src/regexUtils');
 
 test('escapeRegexLiteral escapes regex metacharacters', () => {
@@ -40,4 +41,13 @@ test('testRegexMatch supports inverted matching', () => {
   assert.equal(testRegexMatch(regex, 'READY=1'), true);
   assert.equal(testRegexMatch(regex, 'READY=0'), false);
   assert.equal(testRegexMatch(regex, 'READY=0', { invert: true }), true);
+});
+
+test('compileRegexSpec supports literal mode and fallback mode', () => {
+  const literal = compileRegexSpec({ pattern: 'A+B', mode: 'literal', flags: '' });
+  assert.equal(literal.test('A+B'), true);
+  assert.equal(literal.test('AB'), false);
+
+  const fallback = compileRegexSpec({ pattern: '(', mode: 'regex', flags: '', onInvalid: 'literal-fallback' });
+  assert.equal(fallback.test('('), true);
 });

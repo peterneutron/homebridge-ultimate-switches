@@ -356,7 +356,13 @@
                   "name": {
                     "title": "Event Name Pattern",
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "description": "Legacy regex pattern string (still supported). Used for display naming and matching when match object is omitted."
+                  },
+                  "match": {
+                    "title": "Event Match (Preferred)",
+                    "description": "Optional explicit regex/literal match policy. When omitted, legacy name string is treated as regex with exact-match fallback on invalid patterns.",
+                    "$ref": "#/schema/definitions/regexMatcher"
                   },
                   "triggerOnUpdates": {
                     "title": "Trigger on Progress Updates",
@@ -510,6 +516,11 @@
             "type": "string",
             "description": "Regex tested against command stdout or webhook response body. For status actions this can determine ON/OFF from output."
           },
+          "match": {
+            "title": "Regex Match (Preferred)",
+            "description": "Explicit regex/literal matcher config. Do not combine with matchPattern/matchFlags/matchInvert.",
+            "$ref": "#/schema/definitions/regexMatcher"
+          },
           "matchFlags": {
             "title": "Regex Flags",
             "type": "string",
@@ -520,6 +531,38 @@
             "type": "boolean",
             "default": false,
             "description": "Flip the regex result after matching."
+          }
+        }
+      },
+      "regexMatcher": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "title": "Pattern",
+            "type": "string",
+            "minLength": 1
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string",
+            "enum": ["regex", "literal"],
+            "default": "regex"
+          },
+          "flags": {
+            "title": "Flags",
+            "type": "string",
+            "description": "JavaScript regex flags (for example: i, m)."
+          },
+          "invert": {
+            "title": "Invert",
+            "type": "boolean",
+            "default": false
+          },
+          "onInvalid": {
+            "title": "On Invalid Pattern",
+            "type": "string",
+            "enum": ["error", "literal-fallback"],
+            "description": "How to handle invalid regex patterns. Calendar event matchers may use literal-fallback; command action matchers require error."
           }
         }
       }

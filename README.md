@@ -200,8 +200,19 @@ Legend:
 | `headers` | Optional | `undefined` | Webhook only; string header map. |
 | `body` | Optional | `undefined` | Webhook only; request body (string). |
 | `matchPattern` | Optional | `undefined` | Regex matched against command `stdout` or webhook response body. |
+| `match` | Optional (preferred) | `undefined` | Explicit regex/literal matcher object. Do not combine with `matchPattern`/`matchFlags`/`matchInvert`. |
 | `matchFlags` | Optional | `undefined` | JS regex flags (requires `matchPattern`). |
 | `matchInvert` | Optional | `false` | Inverts regex match result. |
+
+`commandSwitches[].on|off|status.match` object fields:
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `pattern` | Required | - | Regex or literal text depending on `mode`. |
+| `mode` | Optional | `regex` | `regex` or `literal`. |
+| `flags` | Optional | `""` | JavaScript regex flags (`i`, `m`, etc.). |
+| `invert` | Optional | `false` | Inverts the match result. |
+| `onInvalid` | Optional | `error` | Command switch action matchers use `error`. |
 
 Command switch action notes:
 
@@ -345,7 +356,8 @@ Example: multiple heartbeat triggers
 
 | Field | Required | Default | Notes |
 |---|---|---|---|
-| `name` | Required | - | Regex string used to match event summaries. |
+| `name` | Required | - | Display/key name. Legacy behavior also treats this as the regex pattern when `match` is omitted. |
+| `match` | Optional (preferred) | `undefined` | Explicit event summary matcher object (`regex` or `literal`). |
 | `triggerOnUpdates` | Optional | `true` | Pulse semantics for watched event accessory. |
 | `notifications[]` | Optional | `[]` | Notification boundaries for matched events. |
 
@@ -358,6 +370,33 @@ Example: multiple heartbeat triggers
 | `endOffsetMinutes` | Optional | `undefined` | Notification boundary relative to event end. |
 
 At least one of `startOffsetMinutes` or `endOffsetMinutes` is required per notification row.
+
+## Regex Policy (Legacy + New)
+
+- Legacy regex strings still work exactly as before.
+  - Example calendar event legacy pattern: `^(GF|GFW|GT|GTW)$`
+- New matcher object form is available in:
+  - `commandSwitches[].on|off|status.match`
+  - `calendarTriggers[].events[].match`
+- Matcher `mode`:
+  - `regex`: pattern is treated as a regular expression
+  - `literal`: pattern is treated as exact text (escaped internally)
+- Calendar legacy `events[].name` matching keeps compatibility behavior:
+  - invalid regex patterns fall back to exact literal matching and log a warning
+
+Calendar example using explicit matcher object (legacy `name` remains the display/key):
+
+```json
+{
+  "name": "Game Feed",
+  "match": {
+    "pattern": "^(GF|GFW|GT|GTW)$",
+    "mode": "regex",
+    "flags": "",
+    "onInvalid": "literal-fallback"
+  }
+}
+```
 
 ### `contextSensor`
 

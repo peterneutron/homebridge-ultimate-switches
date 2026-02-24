@@ -581,3 +581,57 @@ test('calendar engine logs INFO when notifications fire', async () => {
     true,
   );
 });
+
+test('calendar engine supports explicit event match object and legacy invalid regex fallback', async () => {
+  const scheduler = createFakeScheduler();
+  const logSink = createLogSink();
+  const now = Date.parse('2026-02-15T12:00:00Z');
+
+  const engine = new CalendarEngine(
+    logSink.logger,
+    {
+      name: 'Developer',
+      url: 'https://example.invalid/ics',
+      updateIntervalMinutes: 60,
+      requestTimeoutSeconds: 15,
+      updateButton: false,
+      triggerOnUpdates: false,
+      triggerOnAnyEvent: false,
+      events: [
+        {
+          name: 'Literal Display',
+          match: { pattern: 'Team Standup', mode: 'literal', flags: '', onInvalid: 'error' },
+          triggerOnUpdates: false,
+          notifications: [],
+        },
+        {
+          name: '(',
+          triggerOnUpdates: false,
+          notifications: [],
+        },
+      ],
+    },
+    {
+      listEvents: async () => [{
+        summary: 'Team Standup',
+        startMs: now - 60000,
+        endMs: now + 60000,
+      }, {
+        summary: '(',
+        startMs: now - 60000,
+        endMs: now + 60000,
+      }],
+    },
+    () => now,
+    scheduler,
+  );
+
+  await engine.refreshNow();
+
+  assert.equal(engine.getEventState('calendarEvent:Developer:Literal Display').active, true);
+  assert.equal(engine.getEventState('calendarEvent:Developer:(').active, true);
+  assert.equal(
+    logSink.warn.some((args) => String(args[0]).includes('Invalid regex pattern')),
+    true,
+  );
+});

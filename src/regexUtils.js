@@ -60,10 +60,33 @@ function testRegexMatch(regex, text, options = {}) {
   return invert ? !matched : matched;
 }
 
+function compileRegexSpec(spec, options = {}) {
+  const source = spec && typeof spec === 'object' ? spec : {};
+  const mode = source.mode === 'literal' ? 'literal' : 'regex';
+  const pattern = String(source.pattern || '');
+  const flags = typeof source.flags === 'string' ? source.flags : '';
+  const onInvalid = source.onInvalid === 'literal-fallback' ? 'literal-fallback' : 'error';
+
+  if (mode === 'literal') {
+    return new RegExp(`^${escapeRegexLiteral(pattern)}$`, flags);
+  }
+
+  if (onInvalid === 'literal-fallback') {
+    return compileRegexWithFallback(pattern, {
+      ...options,
+      flags,
+      fallback: 'exact',
+    });
+  }
+
+  return compileRegexOrThrow(pattern, flags, options.contextLabel);
+}
+
 module.exports = {
   escapeRegexLiteral,
   tryCompileRegex,
   compileRegexOrThrow,
   compileRegexWithFallback,
   testRegexMatch,
+  compileRegexSpec,
 };

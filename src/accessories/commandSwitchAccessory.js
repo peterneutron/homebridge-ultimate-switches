@@ -3,7 +3,7 @@
 const { bindOnGet, bindOnSet } = require('../hapBinding');
 const { runShellCommand, runWebhookRequest } = require('../commandExecutor');
 const { formatBoolState, logTransition } = require('../logger');
-const { compileRegexOrThrow, testRegexMatch } = require('../regexUtils');
+const { compileRegexOrThrow, compileRegexSpec, testRegexMatch } = require('../regexUtils');
 
 class CommandSwitchAccessory {
   constructor(api, log, accessory, options, coordinator, executorOrExecutors = runShellCommand, timers = {}, randomFn = Math.random) {
@@ -163,25 +163,29 @@ class CommandSwitchAccessory {
   }
 
   buildRegex(action) {
-    if (!action?.matchPattern) {
+    if (!action?.matchPattern && !action?.match) {
       return null;
+    }
+    if (action.match) {
+      return compileRegexSpec(action.match, { contextLabel: 'Command switch regex' });
     }
     return compileRegexOrThrow(action.matchPattern, action.matchFlags || '', 'Command switch regex');
   }
 
   evaluateMatch(action, payload, source) {
-    if (!action?.matchPattern) {
+    if (!action?.matchPattern && !action?.match) {
       return true;
     }
     const regex = this.buildRegex(action);
-    const result = testRegexMatch(regex, payload || '', { invert: action.matchInvert });
+    const invert = action.match ? action.match.invert : action.matchInvert;
+    const result = testRegexMatch(regex, payload || '', { invert });
     this.log.debug(
       '[CommandSwitch:%s] Regex %s (%s source=%s invert=%s)',
       this.options.name,
       result ? 'matched' : 'did not match',
       source,
       action.transport,
-      Boolean(action.matchInvert),
+      Boolean(action.match ? action.match.invert : action.matchInvert),
     );
     return result;
   }
@@ -225,7 +229,7 @@ class CommandSwitchAccessory {
     try {
       const result = await this.executeActionWithDebug(action, this.options.commandTimeoutSeconds, source);
       const payload = action.transport === 'webhook' ? result.body : result.stdout;
-      const nextState = action.matchPattern ? this.evaluateMatch(action, payload, 'status') : true;
+      const nextState = (action.matchPattern || action.match) ? this.evaluateMatch(action, payload, 'status') : true;
       this.log.debug(
         '[CommandSwitch:%s] State resolved via %s: %s',
         this.options.name,
@@ -247,7 +251,7 @@ class CommandSwitchAccessory {
       const action = this.getAction(targetState ? 'on' : 'off');
       if (targetState || action) {
         const result = await this.executeActionWithDebug(action, this.options.commandTimeoutSeconds, source);
-        if (action?.matchPattern) {
+        if (action?.matchPattern || action?.match) {
           const payload = action.transport === 'webhook' ? result.body : result.stdout;
           if (!this.evaluateMatch(action, payload, targetState ? 'on' : 'off')) {
             throw new Error(`Action output did not match ${targetState ? 'ON' : 'OFF'} confirmation pattern`);

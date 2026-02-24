@@ -4,7 +4,7 @@ const { CalendarProvider } = require('./calendarProvider');
 const { computeProgress, isEventActive } = require('./calendarLogic');
 const { buildCalendarEventKey, buildCalendarNotificationKey } = require('./calendarKeys');
 const { formatCalendarDelta } = require('./logger');
-const { compileRegexWithFallback } = require('./regexUtils');
+const { compileRegexSpec } = require('./regexUtils');
 
 const PULSE_MS = 10000;
 const MAX_REPLAY_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -12,13 +12,16 @@ const EVENT_PAST_WINDOW_MS = 24 * 60 * 60 * 1000;
 const EVENT_FUTURE_WINDOW_MS = 48 * 60 * 60 * 1000;
 const FIRED_BOUNDARY_TTL_MS = 24 * 60 * 60 * 1000;
 
-function safeRegex(pattern, log, label) {
-  return compileRegexWithFallback(pattern, {
-    fallback: 'exact',
+function safeRegexSpec(spec, log, label, legacyPatternForWarning) {
+  return compileRegexSpec(spec, {
     log,
     label,
     warnMessage(targetLog) {
-      targetLog.warn('[Calendar:%s] Invalid regex pattern "%s"; using exact match fallback', label, pattern);
+      targetLog.warn(
+        '[Calendar:%s] Invalid regex pattern "%s"; using exact match fallback',
+        label,
+        legacyPatternForWarning ?? spec?.pattern,
+      );
     },
   });
 }
@@ -127,7 +130,18 @@ class CalendarEngine {
 
       return {
         ...event,
-        regex: safeRegex(event.name, this.log, this.config.name),
+        regex: safeRegexSpec(
+          event.match || {
+            pattern: event.name,
+            mode: 'regex',
+            flags: '',
+            invert: false,
+            onInvalid: 'literal-fallback',
+          },
+          this.log,
+          this.config.name,
+          event.name,
+        ),
         eventKey,
         notifications,
       };

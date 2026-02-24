@@ -546,3 +546,35 @@ test('on action optional regex confirmation can block state update', async () =>
   await assert.rejects(instance.setState(true), /did not match ON confirmation pattern/);
   assert.equal(instance.state, false);
 });
+
+test('command action supports explicit match object', async () => {
+  const api = createMockApi();
+  const accessory = createMockAccessory(api);
+
+  const instance = new CommandSwitchAccessory(
+    api,
+    createLogger(),
+    accessory,
+    {
+      name: 'MatchObject',
+      actions: {
+        on: {
+          transport: 'command',
+          input: 'echo on',
+          match: { pattern: 'power=on', mode: 'regex', flags: 'i', invert: false, onInvalid: 'error' },
+        },
+      },
+      polling: false,
+      pollIntervalSeconds: 5,
+      commandTimeoutSeconds: 2,
+    },
+    new OperationCoordinator(),
+    {
+      runCommand: async () => ({ stdout: 'POWER=ON', stderr: '' }),
+    },
+  );
+
+  instance.configure();
+  await instance.setState(true);
+  assert.equal(instance.state, true);
+});
