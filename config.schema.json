@@ -179,6 +179,51 @@
         },
         "default": []
       },
+      "heartbeats": {
+        "title": "Heartbeat Motion Triggers",
+        "description": "Periodic motion pulse accessories for automations (heartbeat mode). Each entry emits Motion Detected ON then OFF on a schedule.",
+        "type": "array",
+        "items": {
+          "title": "Heartbeat",
+          "type": "object",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string",
+              "minLength": 1
+            },
+            "enabled": {
+              "title": "Enabled",
+              "type": "boolean",
+              "default": true
+            },
+            "intervalSeconds": {
+              "title": "Interval (seconds)",
+              "description": "Time between pulse starts. Range 1..86400 seconds (24h).",
+              "type": "integer",
+              "default": 60,
+              "minimum": 1,
+              "maximum": 86400
+            },
+            "pulseDurationSeconds": {
+              "title": "Pulse Duration (seconds)",
+              "description": "How long Motion Detected stays ON for each pulse. Range 1..86400. Must be <= intervalSeconds.",
+              "type": "integer",
+              "default": 1,
+              "minimum": 1,
+              "maximum": 86400
+            },
+            "startupMode": {
+              "title": "Startup Mode",
+              "description": "wait = first pulse after one interval. immediate = pulse once at startup, then continue on interval.",
+              "type": "string",
+              "enum": ["wait", "immediate"],
+              "default": "wait"
+            }
+          }
+        },
+        "default": []
+      },
       "locks": {
         "title": "Virtual Locks",
         "type": "array",

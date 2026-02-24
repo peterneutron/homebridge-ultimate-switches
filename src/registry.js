@@ -23,6 +23,12 @@ function buildDescriptors(config) {
     descriptors.push({ kind: 'timer', name: item.name, key: `timer:${item.name}`, config: item });
   });
 
+  (Array.isArray(config.heartbeats) ? config.heartbeats : [])
+    .filter((item) => item.enabled !== false)
+    .forEach((item) => {
+      descriptors.push({ kind: 'heartbeat', name: item.name, key: `heartbeat:${item.name}`, config: item });
+    });
+
   config.locks.forEach((item) => {
     descriptors.push({ kind: 'lock', name: item.name, key: `lock:${item.name}`, config: item });
   });

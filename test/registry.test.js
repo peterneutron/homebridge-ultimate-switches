@@ -12,6 +12,7 @@ test('buildDescriptors generates entries for each configured group', () => {
     commandSwitches: [{ name: 'Cmd' }],
     switches: [{ name: 'Switch' }],
     timers: [{ name: 'Timer' }],
+    heartbeats: [{ name: 'Heartbeat', enabled: true, intervalSeconds: 60, pulseDurationSeconds: 1, startupMode: 'wait' }],
     locks: [{ name: 'Lock' }],
     securitySystems: [{ name: 'Security' }],
     calendarTriggers: [{
@@ -29,6 +30,7 @@ test('buildDescriptors generates entries for each configured group', () => {
     'commandSwitch',
     'switch',
     'timer',
+    'heartbeat',
     'lock',
     'security',
     'calendarRoot',
@@ -44,6 +46,22 @@ test('buildDescriptors omits context sensor when disabled', () => {
     commandSwitches: [],
     switches: [],
     timers: [],
+    heartbeats: [],
+    locks: [],
+    securitySystems: [],
+    calendarTriggers: [],
+    contextSensor: { enabled: false, name: 'Context' },
+  });
+
+  assert.equal(descriptors.length, 0);
+});
+
+test('buildDescriptors skips disabled heartbeats', () => {
+  const descriptors = buildDescriptors({
+    commandSwitches: [],
+    switches: [],
+    timers: [],
+    heartbeats: [{ name: 'HB', enabled: false }],
     locks: [],
     securitySystems: [],
     calendarTriggers: [],

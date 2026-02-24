@@ -1,5 +1,7 @@
 'use strict';
 
+const { compileRegexOrThrow } = require('./regexUtils');
+
 class ValidationError extends Error {
   constructor(message) {
     super(message);
@@ -90,9 +92,7 @@ function validateRegexConfig(path, pattern, flags) {
     throw new ValidationError(`${path}.matchFlags must be a string when provided`);
   }
   try {
-    // Validate syntax during normalization; runtime can compile again if needed.
-    // eslint-disable-next-line no-new
-    new RegExp(pattern, flags || '');
+    compileRegexOrThrow(pattern, flags || '', path);
   } catch (error) {
     throw new ValidationError(`${path}.matchPattern is invalid: ${error.message}`);
   }
@@ -302,6 +302,36 @@ function normalizeTimers(raw) {
   return items;
 }
 
+function normalizeHeartbeats(raw) {
+  const items = asArray(raw).map((item, index) => {
+    if (!isNonEmptyString(item?.name)) {
+      throw new ValidationError(`heartbeats[${index}].name is required`);
+    }
+
+    const startupMode = isNonEmptyString(item.startupMode) ? item.startupMode.trim() : 'wait';
+    if (!['wait', 'immediate'].includes(startupMode)) {
+      throw new ValidationError(`heartbeats[${index}].startupMode must be wait or immediate`);
+    }
+
+    const normalized = {
+      name: item.name.trim(),
+      enabled: toBoolean(item.enabled, true),
+      intervalSeconds: clampNumber(item.intervalSeconds, 60, 1, 86400),
+      pulseDurationSeconds: clampNumber(item.pulseDurationSeconds, 1, 1, 86400),
+      startupMode,
+    };
+
+    if (normalized.pulseDurationSeconds > normalized.intervalSeconds) {
+      throw new ValidationError(`heartbeats[${index}].pulseDurationSeconds must be <= intervalSeconds`);
+    }
+
+    return normalized;
+  });
+
+  ensureUniqueNames(items, 'heartbeats');
+  return items;
+}
+
 function normalizeLocks(raw) {
   const items = asArray(raw).map((item, index) => {
     if (!isNonEmptyString(item?.name)) {
@@ -449,6 +479,7 @@ function normalizeConfig(rawConfig) {
     commandSwitches: normalizeCommandSwitches(raw.commandSwitches),
     switches: normalizeBasicSwitches(raw.switches),
     timers: normalizeTimers(raw.timers),
+    heartbeats: normalizeHeartbeats(raw.heartbeats),
     locks: normalizeLocks(raw.locks),
     securitySystems: normalizeSecuritySystems(raw.securitySystems),
     calendarTriggers: normalizeCalendarTriggers(raw.calendarTriggers),

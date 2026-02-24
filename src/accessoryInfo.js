@@ -6,6 +6,7 @@ const MODEL_BY_KIND = {
   commandSwitch: 'Command Switch',
   switch: 'Basic Switch',
   timer: 'Timer Switch',
+  heartbeat: 'Heartbeat Trigger',
   lock: 'Virtual Lock',
   security: 'Security System',
   calendarRoot: 'Calendar Trigger',

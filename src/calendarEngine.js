@@ -4,6 +4,7 @@ const { CalendarProvider } = require('./calendarProvider');
 const { computeProgress, isEventActive } = require('./calendarLogic');
 const { buildCalendarEventKey, buildCalendarNotificationKey } = require('./calendarKeys');
 const { formatCalendarDelta } = require('./logger');
+const { compileRegexWithFallback } = require('./regexUtils');
 
 const PULSE_MS = 10000;
 const MAX_REPLAY_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -12,13 +13,14 @@ const EVENT_FUTURE_WINDOW_MS = 48 * 60 * 60 * 1000;
 const FIRED_BOUNDARY_TTL_MS = 24 * 60 * 60 * 1000;
 
 function safeRegex(pattern, log, label) {
-  try {
-    return new RegExp(pattern);
-  } catch (error) {
-    log.warn('[Calendar:%s] Invalid regex pattern "%s"; using exact match fallback', label, pattern);
-    const escaped = String(pattern).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(`^${escaped}$`);
-  }
+  return compileRegexWithFallback(pattern, {
+    fallback: 'exact',
+    log,
+    label,
+    warnMessage(targetLog) {
+      targetLog.warn('[Calendar:%s] Invalid regex pattern "%s"; using exact match fallback', label, pattern);
+    },
+  });
 }
 
 function buildSummaryBuckets(events) {

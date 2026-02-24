@@ -130,3 +130,17 @@ test('platform applies accessory information during initialization', () => {
   assert.equal(accessory.infoService.values.Model, 'Basic Switch');
   assert.equal(accessory.infoService.values.SerialNumber, 'US-UUIDULTIMATESWITCHES:SWITCH:KITCHEN LIGHT');
 });
+
+test('platform registers heartbeat accessories as sensors', () => {
+  const sink = createBaseLog();
+  const { api, registered } = createMockApi();
+  const platform = new UltimateSwitchesPlatform(sink.log, {
+    heartbeats: [{ name: 'Heartbeat', intervalSeconds: 60, pulseDurationSeconds: 1 }],
+  }, api);
+
+  platform.createAccessoryInstance = () => ({ configure() {} });
+  platform.initializeAccessories();
+
+  assert.equal(registered.length, 1);
+  assert.equal(registered[0].category, api.hap.Accessory.Categories.SENSOR);
+});

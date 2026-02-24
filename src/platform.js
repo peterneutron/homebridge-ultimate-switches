@@ -15,6 +15,7 @@ const { ContextSensorAccessory } = require('./accessories/contextSensorAccessory
 const { LockAccessory } = require('./accessories/lockAccessory');
 const { SecuritySystemAccessory } = require('./accessories/securitySystemAccessory');
 const { TimerSwitchAccessory } = require('./accessories/timerSwitchAccessory');
+const { HeartbeatAccessory } = require('./accessories/heartbeatAccessory');
 const { applyAccessoryInformation } = require('./accessoryInfo');
 const { PLATFORM_NAME, PLUGIN_NAME } = require('./settings');
 
@@ -22,6 +23,7 @@ const SUPPORTED_KINDS = new Set([
   'commandSwitch',
   'switch',
   'timer',
+  'heartbeat',
   'lock',
   'security',
   'calendarRoot',
@@ -149,6 +151,10 @@ class UltimateSwitchesPlatform {
       return new TimerSwitchAccessory(this.api, this.log, accessory, descriptor.config, this.operationCoordinator);
     }
 
+    if (descriptor.kind === 'heartbeat') {
+      return new HeartbeatAccessory(this.api, this.log, accessory, descriptor.config);
+    }
+
     if (descriptor.kind === 'contextSensor') {
       return new ContextSensorAccessory(this.api, this.log, accessory, descriptor.config);
     }
@@ -200,6 +206,7 @@ class UltimateSwitchesPlatform {
   resolveCategory(kind) {
     if (
       kind === 'contextSensor'
+      || kind === 'heartbeat'
       || kind === 'calendarRoot'
       || kind === 'calendarEvent'
       || kind === 'calendarNotification'

@@ -3,6 +3,7 @@
 const { bindOnGet, bindOnSet } = require('../hapBinding');
 const { runShellCommand, runWebhookRequest } = require('../commandExecutor');
 const { formatBoolState, logTransition } = require('../logger');
+const { compileRegexOrThrow, testRegexMatch } = require('../regexUtils');
 
 class CommandSwitchAccessory {
   constructor(api, log, accessory, options, coordinator, executorOrExecutors = runShellCommand, timers = {}, randomFn = Math.random) {
@@ -165,7 +166,7 @@ class CommandSwitchAccessory {
     if (!action?.matchPattern) {
       return null;
     }
-    return new RegExp(action.matchPattern, action.matchFlags || '');
+    return compileRegexOrThrow(action.matchPattern, action.matchFlags || '', 'Command switch regex');
   }
 
   evaluateMatch(action, payload, source) {
@@ -173,8 +174,7 @@ class CommandSwitchAccessory {
       return true;
     }
     const regex = this.buildRegex(action);
-    const matched = regex.test(payload || '');
-    const result = action.matchInvert ? !matched : matched;
+    const result = testRegexMatch(regex, payload || '', { invert: action.matchInvert });
     this.log.debug(
       '[CommandSwitch:%s] Regex %s (%s source=%s invert=%s)',
       this.options.name,

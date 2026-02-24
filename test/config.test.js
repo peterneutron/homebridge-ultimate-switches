@@ -11,6 +11,7 @@ test('normalizeConfig returns defaults for empty input', () => {
   assert.equal(config.name, 'Ultimate Switches');
   assert.equal(config.debug, false);
   assert.deepEqual(config.commandSwitches, []);
+  assert.deepEqual(config.heartbeats, []);
   assert.equal(config.contextSensor.enabled, false);
   assert.equal(config.contextSensor.refreshIntervalSeconds, 60);
 });
@@ -30,6 +31,11 @@ test('normalizeConfig clamps timer and command numeric ranges', () => {
       name: 'Timer',
       periodSeconds: -4,
     }],
+    heartbeats: [{
+      name: 'HB',
+      intervalSeconds: 999999,
+      pulseDurationSeconds: 0,
+    }],
     calendarTriggers: [{
       name: 'Cal',
       url: 'https://example.invalid/ics',
@@ -41,8 +47,42 @@ test('normalizeConfig clamps timer and command numeric ranges', () => {
   assert.equal(config.commandSwitches[0].pollIntervalSeconds, 300);
   assert.equal(config.commandSwitches[0].commandTimeoutSeconds, 1);
   assert.equal(config.timers[0].periodSeconds, 1);
+  assert.equal(config.heartbeats[0].intervalSeconds, 86400);
+  assert.equal(config.heartbeats[0].pulseDurationSeconds, 1);
   assert.equal(config.calendarTriggers[0].requestTimeoutSeconds, 120);
   assert.equal(config.calendarTriggers[0].updateIntervalMinutes, 30);
+});
+
+test('normalizeConfig applies heartbeat defaults and accepts disabled rows', () => {
+  const config = normalizeConfig({
+    heartbeats: [
+      { name: 'HB1' },
+      { name: 'HB2', enabled: false, startupMode: 'immediate' },
+    ],
+  });
+
+  assert.equal(config.heartbeats[0].enabled, true);
+  assert.equal(config.heartbeats[0].intervalSeconds, 60);
+  assert.equal(config.heartbeats[0].pulseDurationSeconds, 1);
+  assert.equal(config.heartbeats[0].startupMode, 'wait');
+  assert.equal(config.heartbeats[1].enabled, false);
+  assert.equal(config.heartbeats[1].startupMode, 'immediate');
+});
+
+test('normalizeConfig rejects invalid heartbeat timing and names', () => {
+  assert.throws(() => normalizeConfig({
+    heartbeats: [{ name: 'HB', intervalSeconds: 5, pulseDurationSeconds: 6 }],
+  }), ValidationError);
+
+  assert.throws(() => normalizeConfig({
+    heartbeats: [{ intervalSeconds: 5 }],
+  }), ValidationError);
+});
+
+test('normalizeConfig rejects duplicate heartbeat names', () => {
+  assert.throws(() => normalizeConfig({
+    heartbeats: [{ name: 'HB' }, { name: 'hb' }],
+  }), ValidationError);
 });
 
 test('normalizeConfig accepts command switch without offCommand and defaults timeout to 5', () => {

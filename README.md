@@ -12,6 +12,7 @@
 - Command Switches (`on`, optional `off`, optional `state` poll, optional auto-off)
 - Basic virtual switches
 - Timer / momentary switches
+- Heartbeat motion triggers (periodic ON/OFF motion pulses for automations)
 - Virtual locks
 - Virtual security systems with zones
 - Calendar triggers split into root, watched-event, and notification accessories
@@ -36,6 +37,7 @@ Configure the plugin in Homebridge Config UI X using platform name `UltimateSwit
   "commandSwitches": [],
   "switches": [],
   "timers": [],
+  "heartbeats": [],
   "locks": [],
   "securitySystems": [],
   "calendarTriggers": [],
@@ -91,6 +93,21 @@ Legend:
       "autoOff": true,
       "emitMotionPulse": true,
       "persistState": false
+    }
+  ],
+  "heartbeats": [
+    {
+      "name": "Every Minute",
+      "enabled": true,
+      "intervalSeconds": 60,
+      "pulseDurationSeconds": 1,
+      "startupMode": "wait"
+    },
+    {
+      "name": "Immediate Startup Ping",
+      "intervalSeconds": 300,
+      "pulseDurationSeconds": 2,
+      "startupMode": "immediate"
     }
   ],
   "locks": [
@@ -254,6 +271,43 @@ Equivalent preferred form:
 | `emitMotionPulse` | Optional | `true` | Emits motion pulse for compatible automations. |
 | `persistState` | Optional | `false` | Persists state in accessory context cache. |
 
+### `heartbeats[]`
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `name` | Required | - | Unique (case-insensitive) within `heartbeats`. |
+| `enabled` | Optional | `true` | If `false`, heartbeat is kept in config but no accessory is created. |
+| `intervalSeconds` | Optional | `60` | Time between pulse starts, clamped to `1..86400`. |
+| `pulseDurationSeconds` | Optional | `1` | How long motion stays ON for each pulse, clamped to `1..86400`. Must be `<= intervalSeconds`. |
+| `startupMode` | Optional | `wait` | `wait` = first pulse after one interval, `immediate` = pulse once on startup then continue schedule. |
+
+Heartbeat notes:
+
+- Each heartbeat creates a Motion Sensor accessory intended for HomeKit automations.
+- Pulse behavior is `MotionDetected=true` for `pulseDurationSeconds`, then `false`.
+- Multiple heartbeats are supported and run independently.
+
+Example: multiple heartbeat triggers
+
+```json
+{
+  "heartbeats": [
+    {
+      "name": "Every 30s",
+      "intervalSeconds": 30,
+      "pulseDurationSeconds": 1,
+      "startupMode": "wait"
+    },
+    {
+      "name": "Every 15m (Immediate)",
+      "intervalSeconds": 900,
+      "pulseDurationSeconds": 2,
+      "startupMode": "immediate"
+    }
+  ]
+}
+```
+
 ### `locks[]`
 
 | Field | Required | Default | Notes |
@@ -348,6 +402,7 @@ Typical consolidation mapping:
 - automation/momentary switch plugins -> `timers`
 - calendar scheduler style plugins -> `calendarTriggers`
 - calendar context accessory plugins -> `contextSensor`
+- periodic automation heartbeat/ping plugins -> `heartbeats`
 
 ## Development
 
