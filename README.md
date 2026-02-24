@@ -9,7 +9,7 @@
 
 ## Features
 
-- Command Switches (`on`, optional `off`, optional `state` poll, optional auto-off)
+- Command + Webhook Switches (mixed `on`/`off`/`status` actions, polling, optional regex matching, optional auto-off)
 - Basic virtual switches
 - Timer / momentary switches
 - Heartbeat motion triggers (periodic ON/OFF motion pulses for automations)
