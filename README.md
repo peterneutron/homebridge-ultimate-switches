@@ -60,9 +60,18 @@ Legend:
   "commandSwitches": [
     {
       "name": "Command Switch",
-      "onCommand": "some_command",
-      "offCommand": "some_command",
-      "stateCommand": "some_command",
+      "on": "192.168.1.50/api/on",
+      "off": {
+        "input": "http://192.168.1.50/api/off",
+        "method": "POST",
+        "headers": { "X-Token": "secret" },
+        "body": "{\"power\":\"off\"}"
+      },
+      "status": {
+        "input": "devicectl status",
+        "matchPattern": "power:\\s*on",
+        "matchFlags": "i"
+      },
       "polling": true,
       "pollIntervalSeconds": 5,
       "commandTimeoutSeconds": 5
@@ -153,13 +162,79 @@ Legend:
 | Field | Required | Default | Notes |
 |---|---|---|---|
 | `name` | Required | - | Unique (case-insensitive) within `commandSwitches`. |
-| `onCommand` | Required | - | Executed on ON transition. |
-| `offCommand` | Optional | `undefined` | If omitted, OFF transition flips state without shell call. |
-| `stateCommand` | Optional | `undefined` | Required when `polling=true`. |
+| `on` | Required (preferred) | - | Action spec or string shorthand for ON. Auto-detects command vs webhook. |
+| `off` | Optional (preferred) | `undefined` | Action spec or string shorthand for OFF. If omitted, OFF flips state without transport call. |
+| `status` | Optional (preferred) | `undefined` | Action spec/string shorthand for polling state. Required when `polling=true` (or use legacy `stateCommand`). |
+| `onCommand` | Legacy | - | Legacy command-only ON field. Cannot be combined with `on`. |
+| `offCommand` | Legacy | `undefined` | Legacy command-only OFF field. Cannot be combined with `off`. |
+| `stateCommand` | Legacy | `undefined` | Legacy command-only status field. Cannot be combined with `status`. |
 | `polling` | Optional | `false` | Enables periodic state command polling. |
 | `pollIntervalSeconds` | Optional | `5` | Clamped to `1..300`. |
-| `commandTimeoutSeconds` | Optional | `5` | Unified timeout for on/off/state commands, `1..120`. |
+| `commandTimeoutSeconds` | Optional | `5` | Unified timeout for command and webhook actions, `1..120`. |
 | `autoOffSeconds` | Optional | `undefined` | Auto-off delay after successful ON, `1..86400`. |
+
+`commandSwitches[].on|off|status` object fields:
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `input` | Required (object form) | - | Command string or webhook URL/IP shorthand. |
+| `type` | Optional | `auto` | `auto`, `command`, or `webhook`. |
+| `method` | Optional | `GET` | Webhook only; `GET` or `POST`. |
+| `headers` | Optional | `undefined` | Webhook only; string header map. |
+| `body` | Optional | `undefined` | Webhook only; request body (string). |
+| `matchPattern` | Optional | `undefined` | Regex matched against command `stdout` or webhook response body. |
+| `matchFlags` | Optional | `undefined` | JS regex flags (requires `matchPattern`). |
+| `matchInvert` | Optional | `false` | Inverts regex match result. |
+
+Command switch action notes:
+
+- String shorthand auto-detects webhooks for `http://`, `https://`, IPv4/IPv6 shorthand, and `localhost` targets. IP/localhost shorthand is normalized to `http://`.
+- Status actions default to `true` on successful command exit / HTTP `2xx`, and `false` on failures. `matchPattern` (if set) overrides this by parsing output/body.
+- `matchPattern` on `on`/`off` is optional and can be used as confirmation after a successful command/webhook call.
+
+Example: mixed webhook + CLI status
+
+```json
+{
+  "name": "Projector",
+  "on": "192.168.1.50/api/on",
+  "off": {
+    "input": "192.168.1.50/api/off",
+    "method": "POST"
+  },
+  "status": {
+    "input": "projectorctl status",
+    "matchPattern": "power:\\s*on",
+    "matchFlags": "i"
+  },
+  "polling": true,
+  "pollIntervalSeconds": 5
+}
+```
+
+Legacy migration (still supported):
+
+```json
+{
+  "name": "Legacy Switch",
+  "onCommand": "device on",
+  "offCommand": "device off",
+  "stateCommand": "device status",
+  "polling": true
+}
+```
+
+Equivalent preferred form:
+
+```json
+{
+  "name": "Legacy Switch",
+  "on": "device on",
+  "off": "device off",
+  "status": "device status",
+  "polling": true
+}
+```
 
 ### `switches[]`
 

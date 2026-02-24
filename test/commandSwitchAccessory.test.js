@@ -366,3 +366,183 @@ test('command switch emits INFO transitions and auto-off lifecycle logs', async 
     true,
   );
 });
+
+test('webhook on action succeeds on 2xx and updates state', async () => {
+  const api = createMockApi();
+  const accessory = createMockAccessory(api);
+  const webhookCalls = [];
+
+  const instance = new CommandSwitchAccessory(
+    api,
+    createLogger(),
+    accessory,
+    {
+      name: 'Webhook',
+      actions: {
+        on: { transport: 'webhook', input: 'http://127.0.0.1/on', method: 'GET' },
+      },
+      polling: false,
+      pollIntervalSeconds: 5,
+      commandTimeoutSeconds: 2,
+    },
+    new OperationCoordinator(),
+    {
+      runWebhook: async (action) => {
+        webhookCalls.push({ input: action.input, method: action.method });
+        return { transport: 'webhook', statusCode: 200, body: 'ok' };
+      },
+    },
+  );
+
+  instance.configure();
+  await instance.setState(true);
+
+  assert.equal(instance.state, true);
+  assert.deepEqual(webhookCalls, [{ input: 'http://127.0.0.1/on', method: 'GET' }]);
+});
+
+test('webhook off failure keeps previous state', async () => {
+  const api = createMockApi();
+  const accessory = createMockAccessory(api);
+
+  const instance = new CommandSwitchAccessory(
+    api,
+    createLogger(),
+    accessory,
+    {
+      name: 'Webhook',
+      actions: {
+        on: { transport: 'webhook', input: 'http://127.0.0.1/on', method: 'GET' },
+        off: { transport: 'webhook', input: 'http://127.0.0.1/off', method: 'GET' },
+      },
+      polling: false,
+      pollIntervalSeconds: 5,
+      commandTimeoutSeconds: 2,
+    },
+    new OperationCoordinator(),
+    {
+      runWebhook: async (action) => {
+        if (action.input.endsWith('/off')) {
+          throw new Error('HTTP 500');
+        }
+        return { transport: 'webhook', statusCode: 200, body: 'ok' };
+      },
+    },
+  );
+
+  instance.configure();
+  await instance.setState(true);
+  await assert.rejects(instance.setState(false), /HTTP 500/);
+  assert.equal(instance.state, true);
+});
+
+test('mixed transport polling supports webhook on/off and command status regex', async () => {
+  const api = createMockApi();
+  const accessory = createMockAccessory(api);
+  const commandOutputs = ['power: on', 'power: off'];
+
+  const instance = new CommandSwitchAccessory(
+    api,
+    createLogger(),
+    accessory,
+    {
+      name: 'Mixed',
+      actions: {
+        on: { transport: 'webhook', input: 'http://127.0.0.1/on', method: 'GET' },
+        off: { transport: 'webhook', input: 'http://127.0.0.1/off', method: 'POST' },
+        status: { transport: 'command', input: 'device status', matchPattern: 'power:\\s*on', matchFlags: 'i' },
+      },
+      polling: false,
+      pollIntervalSeconds: 5,
+      commandTimeoutSeconds: 2,
+    },
+    new OperationCoordinator(),
+    {
+      runCommand: async () => ({ stdout: commandOutputs.shift(), stderr: '' }),
+      runWebhook: async () => ({ transport: 'webhook', statusCode: 200, body: 'ok' }),
+    },
+  );
+
+  instance.configure();
+  await instance.setState(true);
+  assert.equal(instance.state, true);
+
+  await instance.pollState();
+  assert.equal(instance.state, true);
+  await instance.pollState();
+  assert.equal(instance.state, false);
+});
+
+test('status webhook polling uses 2xx default and optional regex on body', async () => {
+  const api = createMockApi();
+  const accessory = createMockAccessory(api);
+  const webhookResults = [
+    { statusCode: 200, body: 'READY=1' },
+    { statusCode: 200, body: 'READY=0' },
+    new Error('Webhook request failed: HTTP 500'),
+  ];
+
+  const instance = new CommandSwitchAccessory(
+    api,
+    createLogger(),
+    accessory,
+    {
+      name: 'StatusWebhook',
+      actions: {
+        on: { transport: 'command', input: 'echo on' },
+        status: { transport: 'webhook', input: 'http://127.0.0.1/status', matchPattern: 'READY=1' },
+      },
+      polling: false,
+      pollIntervalSeconds: 5,
+      commandTimeoutSeconds: 2,
+    },
+    new OperationCoordinator(),
+    {
+      runCommand: async () => ({ stdout: '', stderr: '' }),
+      runWebhook: async () => {
+        const next = webhookResults.shift();
+        if (next instanceof Error) {
+          throw next;
+        }
+        return { transport: 'webhook', ...next };
+      },
+    },
+  );
+
+  instance.configure();
+
+  await instance.pollState();
+  assert.equal(instance.state, true);
+  await instance.pollState();
+  assert.equal(instance.state, false);
+  await instance.pollState();
+  assert.equal(instance.state, false);
+});
+
+test('on action optional regex confirmation can block state update', async () => {
+  const api = createMockApi();
+  const accessory = createMockAccessory(api);
+
+  const instance = new CommandSwitchAccessory(
+    api,
+    createLogger(),
+    accessory,
+    {
+      name: 'Confirm',
+      actions: {
+        on: { transport: 'command', input: 'echo on', matchPattern: 'POWER=ON' },
+      },
+      polling: false,
+      pollIntervalSeconds: 5,
+      commandTimeoutSeconds: 2,
+    },
+    new OperationCoordinator(),
+    {
+      runCommand: async () => ({ stdout: 'POWER=OFF', stderr: '' }),
+    },
+  );
+
+  instance.configure();
+  await assert.rejects(instance.setState(true), /did not match ON confirmation pattern/);
+  assert.equal(instance.state, false);
+});

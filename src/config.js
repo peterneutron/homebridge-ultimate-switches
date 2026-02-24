@@ -48,13 +48,180 @@ function ensureUniqueNames(items, groupName) {
   });
 }
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isWebhookShorthand(value) {
+  if (!isNonEmptyString(value)) {
+    return false;
+  }
+  const input = value.trim();
+  if (/^https?:\/\//i.test(input)) {
+    return true;
+  }
+  if (/^localhost(?::\d+)?(?:\/.*)?$/i.test(input)) {
+    return true;
+  }
+  if (/^\[[0-9a-f:]+\](?::\d+)?(?:\/.*)?$/i.test(input)) {
+    return true;
+  }
+  if (/^\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?(?:\/.*)?$/i.test(input)) {
+    const host = input.split(/[/:]/, 1)[0];
+    const octets = host.split('.').map(Number);
+    return octets.length === 4 && octets.every((n) => Number.isInteger(n) && n >= 0 && n <= 255);
+  }
+  return false;
+}
+
+function normalizeWebhookUrl(input) {
+  const trimmed = input.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  return `http://${trimmed}`;
+}
+
+function validateRegexConfig(path, pattern, flags) {
+  if (!isNonEmptyString(pattern)) {
+    return;
+  }
+  if (flags !== undefined && typeof flags !== 'string') {
+    throw new ValidationError(`${path}.matchFlags must be a string when provided`);
+  }
+  try {
+    // Validate syntax during normalization; runtime can compile again if needed.
+    // eslint-disable-next-line no-new
+    new RegExp(pattern, flags || '');
+  } catch (error) {
+    throw new ValidationError(`${path}.matchPattern is invalid: ${error.message}`);
+  }
+}
+
+function normalizeActionValue(rawValue, path) {
+  if (rawValue === undefined) {
+    return undefined;
+  }
+
+  let source;
+  if (isNonEmptyString(rawValue)) {
+    source = { input: rawValue.trim(), type: 'auto' };
+  } else if (isPlainObject(rawValue)) {
+    source = rawValue;
+  } else {
+    throw new ValidationError(`${path} must be a string or object`);
+  }
+
+  if (!isNonEmptyString(source.input)) {
+    throw new ValidationError(`${path}.input is required`);
+  }
+
+  const requestedType = isNonEmptyString(source.type) ? source.type.trim().toLowerCase() : 'auto';
+  if (!['auto', 'command', 'webhook'].includes(requestedType)) {
+    throw new ValidationError(`${path}.type must be one of auto, command, webhook`);
+  }
+
+  const autoDetectedWebhook = requestedType === 'auto' && isWebhookShorthand(source.input);
+  const transport = requestedType === 'command'
+    ? 'command'
+    : (requestedType === 'webhook' || autoDetectedWebhook ? 'webhook' : 'command');
+
+  const normalized = {
+    input: transport === 'webhook' ? normalizeWebhookUrl(source.input) : source.input.trim(),
+    transport,
+    method: undefined,
+    headers: undefined,
+    body: undefined,
+    matchPattern: undefined,
+    matchFlags: undefined,
+    matchInvert: toBoolean(source.matchInvert, false),
+  };
+
+  if (source.matchPattern !== undefined) {
+    if (!isNonEmptyString(source.matchPattern)) {
+      throw new ValidationError(`${path}.matchPattern must be a non-empty string when provided`);
+    }
+    normalized.matchPattern = source.matchPattern.trim();
+    normalized.matchFlags = typeof source.matchFlags === 'string' ? source.matchFlags : undefined;
+    validateRegexConfig(path, normalized.matchPattern, normalized.matchFlags);
+  } else if (source.matchFlags !== undefined) {
+    throw new ValidationError(`${path}.matchFlags requires matchPattern`);
+  }
+
+  if (transport === 'webhook') {
+    if (source.method !== undefined && !isNonEmptyString(source.method)) {
+      throw new ValidationError(`${path}.method must be GET or POST`);
+    }
+    const method = isNonEmptyString(source.method) ? source.method.trim().toUpperCase() : 'GET';
+    if (!['GET', 'POST'].includes(method)) {
+      throw new ValidationError(`${path}.method must be GET or POST`);
+    }
+    normalized.method = method;
+
+    if (source.headers !== undefined) {
+      if (!isPlainObject(source.headers)) {
+        throw new ValidationError(`${path}.headers must be an object`);
+      }
+      const headers = {};
+      Object.entries(source.headers).forEach(([key, value]) => {
+        if (!isNonEmptyString(key)) {
+          throw new ValidationError(`${path}.headers keys must be non-empty strings`);
+        }
+        if (typeof value !== 'string') {
+          throw new ValidationError(`${path}.headers.${key} must be a string`);
+        }
+        headers[key] = value;
+      });
+      normalized.headers = headers;
+    }
+
+    if (source.body !== undefined) {
+      if (typeof source.body !== 'string') {
+        throw new ValidationError(`${path}.body must be a string`);
+      }
+      normalized.body = source.body;
+    }
+  } else {
+    if (source.method !== undefined) {
+      throw new ValidationError(`${path}.method is only valid for webhook actions`);
+    }
+    if (source.headers !== undefined) {
+      throw new ValidationError(`${path}.headers is only valid for webhook actions`);
+    }
+    if (source.body !== undefined) {
+      throw new ValidationError(`${path}.body is only valid for webhook actions`);
+    }
+  }
+
+  return normalized;
+}
+
+function normalizeCommandSwitchAction(item, index, fieldName, legacyFieldName) {
+  const path = `commandSwitches[${index}].${fieldName}`;
+  const hasNew = Object.hasOwn(item || {}, fieldName);
+  const hasLegacy = Object.hasOwn(item || {}, legacyFieldName);
+  if (hasNew && hasLegacy) {
+    throw new ValidationError(`${path} cannot be combined with ${legacyFieldName}`);
+  }
+  if (hasNew) {
+    return normalizeActionValue(item[fieldName], path);
+  }
+  if (hasLegacy) {
+    if (!isNonEmptyString(item[legacyFieldName])) {
+      if (legacyFieldName === 'offCommand') {
+        return undefined;
+      }
+      throw new ValidationError(`commandSwitches[${index}].${legacyFieldName} must be a non-empty string`);
+    }
+    return normalizeActionValue(item[legacyFieldName].trim(), path);
+  }
+  return undefined;
+}
+
 function normalizeCommandSwitches(raw) {
   const items = asArray(raw).map((item, index) => {
     if (!isNonEmptyString(item?.name)) {
       throw new ValidationError(`commandSwitches[${index}].name is required`);
-    }
-    if (!isNonEmptyString(item?.onCommand)) {
-      throw new ValidationError(`commandSwitches[${index}].onCommand is required`);
     }
     if (Object.hasOwn(item || {}, 'manufacturer')) {
       throw new ValidationError(`commandSwitches[${index}].manufacturer is no longer supported`);
@@ -66,11 +233,20 @@ function normalizeCommandSwitches(raw) {
       throw new ValidationError(`commandSwitches[${index}].serialNumber is no longer supported`);
     }
 
+    const onAction = normalizeCommandSwitchAction(item, index, 'on', 'onCommand');
+    const offAction = normalizeCommandSwitchAction(item, index, 'off', 'offCommand');
+    const statusAction = normalizeCommandSwitchAction(item, index, 'status', 'stateCommand');
+    if (!onAction) {
+      throw new ValidationError(`commandSwitches[${index}].on or onCommand is required`);
+    }
+
     const normalized = {
       name: item.name.trim(),
-      onCommand: item.onCommand.trim(),
-      offCommand: isNonEmptyString(item.offCommand) ? item.offCommand.trim() : undefined,
-      stateCommand: isNonEmptyString(item.stateCommand) ? item.stateCommand.trim() : undefined,
+      actions: {
+        on: onAction,
+        off: offAction,
+        status: statusAction,
+      },
       polling: toBoolean(item.polling, false),
       pollIntervalSeconds: clampNumber(item.pollIntervalSeconds, 5, 1, 300),
       commandTimeoutSeconds: clampNumber(item.commandTimeoutSeconds, 5, 1, 120),
@@ -79,8 +255,8 @@ function normalizeCommandSwitches(raw) {
         : undefined,
     };
 
-    if (normalized.polling && !normalized.stateCommand) {
-      throw new ValidationError(`commandSwitches[${index}] requires stateCommand when polling is enabled`);
+    if (normalized.polling && !normalized.actions.status) {
+      throw new ValidationError(`commandSwitches[${index}] requires status or stateCommand when polling is enabled`);
     }
 
     return normalized;

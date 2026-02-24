@@ -56,6 +56,8 @@ test('normalizeConfig accepts command switch without offCommand and defaults tim
 
   assert.equal(config.commandSwitches[0].offCommand, undefined);
   assert.equal(config.commandSwitches[0].commandTimeoutSeconds, 5);
+  assert.equal(config.commandSwitches[0].actions.on.transport, 'command');
+  assert.equal(config.commandSwitches[0].actions.on.input, 'echo on');
 });
 
 test('normalizeConfig throws when polling command switch has no state command', () => {
@@ -183,6 +185,123 @@ test('normalizeConfig rejects legacy command switch metadata keys', () => {
       onCommand: 'echo on',
       offCommand: 'echo off',
       serialNumber: 'Legacy',
+    }],
+  }), ValidationError);
+});
+
+test('normalizeConfig supports mixed command and webhook action fields', () => {
+  const config = normalizeConfig({
+    commandSwitches: [{
+      name: 'Projector',
+      on: '192.168.1.50/api/on',
+      off: {
+        input: 'http://192.168.1.50/api/off',
+        method: 'POST',
+        headers: { 'X-Token': 'secret' },
+        body: '{"power":"off"}',
+      },
+      status: {
+        input: 'projectorctl status',
+        matchPattern: 'power:\\s*on',
+        matchFlags: 'i',
+      },
+      polling: true,
+    }],
+  });
+
+  const item = config.commandSwitches[0];
+  assert.equal(item.actions.on.transport, 'webhook');
+  assert.equal(item.actions.on.input, 'http://192.168.1.50/api/on');
+  assert.equal(item.actions.off.transport, 'webhook');
+  assert.equal(item.actions.off.method, 'POST');
+  assert.equal(item.actions.off.headers['X-Token'], 'secret');
+  assert.equal(item.actions.status.transport, 'command');
+  assert.equal(item.actions.status.matchPattern, 'power:\\s*on');
+  assert.equal(item.actions.status.matchFlags, 'i');
+});
+
+test('normalizeConfig keeps legacy command switch fields working via actions alias', () => {
+  const config = normalizeConfig({
+    commandSwitches: [{
+      name: 'Legacy',
+      onCommand: 'echo on',
+      offCommand: 'echo off',
+      stateCommand: 'echo state',
+      polling: true,
+    }],
+  });
+
+  assert.equal(config.commandSwitches[0].actions.on.input, 'echo on');
+  assert.equal(config.commandSwitches[0].actions.off.input, 'echo off');
+  assert.equal(config.commandSwitches[0].actions.status.input, 'echo state');
+});
+
+test('normalizeConfig rejects mixing same action legacy and new fields', () => {
+  assert.throws(() => normalizeConfig({
+    commandSwitches: [{
+      name: 'Dup',
+      on: 'echo on',
+      onCommand: 'echo on',
+    }],
+  }), ValidationError);
+});
+
+test('normalizeConfig auto-detects localhost and bracketed ipv6 webhook shorthands', () => {
+  const config = normalizeConfig({
+    commandSwitches: [{
+      name: 'Net',
+      on: 'localhost:8080/power/on',
+      status: '[fe80::1]:8080/status',
+      polling: true,
+    }],
+  });
+
+  assert.equal(config.commandSwitches[0].actions.on.transport, 'webhook');
+  assert.equal(config.commandSwitches[0].actions.on.input, 'http://localhost:8080/power/on');
+  assert.equal(config.commandSwitches[0].actions.status.transport, 'webhook');
+  assert.equal(config.commandSwitches[0].actions.status.input, 'http://[fe80::1]:8080/status');
+});
+
+test('normalizeConfig does not misdetect shell commands as webhooks', () => {
+  const config = normalizeConfig({
+    commandSwitches: [{
+      name: 'Shell',
+      on: 'curl something | jq .',
+    }],
+  });
+
+  assert.equal(config.commandSwitches[0].actions.on.transport, 'command');
+  assert.equal(config.commandSwitches[0].actions.on.input, 'curl something | jq .');
+});
+
+test('normalizeConfig validates regex syntax and webhook fields', () => {
+  assert.throws(() => normalizeConfig({
+    commandSwitches: [{
+      name: 'BadRegex',
+      on: {
+        input: 'http://127.0.0.1/on',
+        matchPattern: '(',
+      },
+    }],
+  }), ValidationError);
+
+  assert.throws(() => normalizeConfig({
+    commandSwitches: [{
+      name: 'BadMethod',
+      on: {
+        input: 'http://127.0.0.1/on',
+        method: 'PUT',
+      },
+    }],
+  }), ValidationError);
+
+  assert.throws(() => normalizeConfig({
+    commandSwitches: [{
+      name: 'BadHeader',
+      on: {
+        input: 'http://127.0.0.1/on',
+        headers: { Token: 123 },
+      },
     }],
   }), ValidationError);
 });

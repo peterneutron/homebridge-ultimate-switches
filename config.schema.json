@@ -32,21 +32,61 @@
               "type": "string",
               "minLength": 1
             },
+            "on": {
+              "title": "On Action (Preferred)",
+              "description": "Command string or action object. Auto-detects webhooks for http(s) URLs, IP/IPv6 shorthand, and localhost targets.",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "$ref": "#/schema/definitions/commandSwitchAction"
+                }
+              ]
+            },
             "onCommand": {
-              "title": "On Command",
+              "title": "On Command (Legacy)",
               "type": "string",
               "minLength": 1
             },
+            "off": {
+              "title": "Off Action (Preferred)",
+              "description": "Optional command/webhook action for OFF. If omitted, OFF only updates the HomeKit state.",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "$ref": "#/schema/definitions/commandSwitchAction"
+                }
+              ]
+            },
             "offCommand": {
-              "title": "Off Command",
+              "title": "Off Command (Legacy)",
               "type": "string"
             },
+            "status": {
+              "title": "Status Action (Preferred)",
+              "description": "Optional command/webhook action used by polling. Required when polling is enabled (or use legacy stateCommand).",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "$ref": "#/schema/definitions/commandSwitchAction"
+                }
+              ]
+            },
             "stateCommand": {
-              "title": "State Command",
+              "title": "State Command (Legacy)",
               "type": "string"
             },
             "polling": {
               "title": "Enable Polling",
+              "description": "Periodically runs the status action to refresh state.",
               "type": "boolean",
               "default": false
             },
@@ -59,6 +99,7 @@
             },
             "commandTimeoutSeconds": {
               "title": "Command Timeout (seconds)",
+              "description": "Unified timeout for command and webhook actions.",
               "type": "integer",
               "default": 5,
               "minimum": 1,
@@ -380,6 +421,61 @@
         "default": {
           "enabled": false,
           "name": "Home Context"
+        }
+      }
+    },
+    "definitions": {
+      "commandSwitchAction": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "title": "Input",
+            "type": "string",
+            "minLength": 1,
+            "description": "Shell command, full webhook URL, or IP/IPv6/localhost shorthand."
+          },
+          "type": {
+            "title": "Action Type",
+            "type": "string",
+            "enum": ["auto", "command", "webhook"],
+            "default": "auto",
+            "description": "Use auto to infer command vs webhook from the input string."
+          },
+          "method": {
+            "title": "Webhook Method",
+            "type": "string",
+            "enum": ["GET", "POST"],
+            "description": "Webhook only. Defaults to GET."
+          },
+          "headers": {
+            "title": "Webhook Headers",
+            "type": "object",
+            "description": "Webhook only. String header map.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "body": {
+            "title": "Webhook Body",
+            "type": "string",
+            "description": "Webhook only. Request body sent as-is."
+          },
+          "matchPattern": {
+            "title": "Optional Regex Match",
+            "type": "string",
+            "description": "Regex tested against command stdout or webhook response body. For status actions this can determine ON/OFF from output."
+          },
+          "matchFlags": {
+            "title": "Regex Flags",
+            "type": "string",
+            "description": "JavaScript regex flags (for example: i, m). Requires matchPattern."
+          },
+          "matchInvert": {
+            "title": "Invert Regex Result",
+            "type": "boolean",
+            "default": false,
+            "description": "Flip the regex result after matching."
+          }
         }
       }
     }

@@ -1,17 +1,24 @@
 'use strict';
 
 const { bindOnGet, bindOnSet } = require('../hapBinding');
-const { runShellCommand } = require('../commandExecutor');
+const { runShellCommand, runWebhookRequest } = require('../commandExecutor');
 const { formatBoolState, logTransition } = require('../logger');
 
 class CommandSwitchAccessory {
-  constructor(api, log, accessory, options, coordinator, executor = runShellCommand, timers = {}, randomFn = Math.random) {
+  constructor(api, log, accessory, options, coordinator, executorOrExecutors = runShellCommand, timers = {}, randomFn = Math.random) {
     this.api = api;
     this.log = log;
     this.accessory = accessory;
     this.options = options;
     this.coordinator = coordinator;
-    this.executor = executor;
+    if (typeof executorOrExecutors === 'function') {
+      this.commandExecutor = executorOrExecutors;
+      this.webhookExecutor = runWebhookRequest;
+    } else {
+      const executors = executorOrExecutors && typeof executorOrExecutors === 'object' ? executorOrExecutors : {};
+      this.commandExecutor = typeof executors.runCommand === 'function' ? executors.runCommand : runShellCommand;
+      this.webhookExecutor = typeof executors.runWebhook === 'function' ? executors.runWebhook : runWebhookRequest;
+    }
     this.setTimeoutFn = timers.setTimeout || setTimeout;
     this.clearTimeoutFn = timers.clearTimeout || clearTimeout;
     this.randomFn = randomFn;
@@ -39,7 +46,7 @@ class CommandSwitchAccessory {
 
     this.service.updateCharacteristic(this.api.hap.Characteristic.On, this.state);
 
-    if (this.options.polling && this.options.stateCommand) {
+    if (this.options.polling && this.getAction('status')) {
       this.startPolling();
     }
   }
@@ -127,27 +134,107 @@ class CommandSwitchAccessory {
     }
   }
 
-  async executeCommandWithDebug(command, timeoutSeconds, source) {
+  getAction(name) {
+    if (this.options?.actions && this.options.actions[name]) {
+      return this.options.actions[name];
+    }
+
+    if (name === 'on' && typeof this.options.onCommand === 'string') {
+      return { transport: 'command', input: this.options.onCommand };
+    }
+    if (name === 'off' && typeof this.options.offCommand === 'string') {
+      return { transport: 'command', input: this.options.offCommand };
+    }
+    if (name === 'status' && typeof this.options.stateCommand === 'string') {
+      return { transport: 'command', input: this.options.stateCommand };
+    }
+    return undefined;
+  }
+
+  describeAction(action) {
+    if (!action) {
+      return 'none';
+    }
+    if (action.transport === 'webhook') {
+      return `${action.method || 'GET'} ${action.input}`;
+    }
+    return 'command';
+  }
+
+  buildRegex(action) {
+    if (!action?.matchPattern) {
+      return null;
+    }
+    return new RegExp(action.matchPattern, action.matchFlags || '');
+  }
+
+  evaluateMatch(action, payload, source) {
+    if (!action?.matchPattern) {
+      return true;
+    }
+    const regex = this.buildRegex(action);
+    const matched = regex.test(payload || '');
+    const result = action.matchInvert ? !matched : matched;
+    this.log.debug(
+      '[CommandSwitch:%s] Regex %s (%s source=%s invert=%s)',
+      this.options.name,
+      result ? 'matched' : 'did not match',
+      source,
+      action.transport,
+      Boolean(action.matchInvert),
+    );
+    return result;
+  }
+
+  async executeActionWithDebug(action, timeoutSeconds, source) {
+    if (!action) {
+      throw new Error(`Missing action for ${source}`);
+    }
     const startedAt = Date.now();
+    const descriptor = this.describeAction(action);
     try {
-      await this.executor(command, timeoutSeconds);
+      const result = action.transport === 'webhook'
+        ? await this.webhookExecutor(action, timeoutSeconds)
+        : await this.commandExecutor(action.input, timeoutSeconds);
       this.log.debug(
-        '[CommandSwitch:%s] Command succeeded (%s) in %dms (timeout=%ss)',
+        '[CommandSwitch:%s] Action succeeded (%s, %s) in %dms (timeout=%ss)',
         this.options.name,
         source,
+        descriptor,
         Date.now() - startedAt,
         timeoutSeconds,
       );
+      return action.transport === 'webhook'
+        ? result
+        : { transport: 'command', stdout: result?.stdout || '', stderr: result?.stderr || '' };
     } catch (error) {
       this.log.debug(
-        '[CommandSwitch:%s] Command failed (%s) in %dms (timeout=%ss): %s',
+        '[CommandSwitch:%s] Action failed (%s, %s) in %dms (timeout=%ss): %s',
         this.options.name,
         source,
+        descriptor,
         Date.now() - startedAt,
         timeoutSeconds,
         error.message,
       );
       throw error;
+    }
+  }
+
+  async executeStateAction(action, source) {
+    try {
+      const result = await this.executeActionWithDebug(action, this.options.commandTimeoutSeconds, source);
+      const payload = action.transport === 'webhook' ? result.body : result.stdout;
+      const nextState = action.matchPattern ? this.evaluateMatch(action, payload, 'status') : true;
+      this.log.debug(
+        '[CommandSwitch:%s] State resolved via %s: %s',
+        this.options.name,
+        action.transport,
+        nextState,
+      );
+      return nextState;
+    } catch (_error) {
+      return false;
     }
   }
 
@@ -157,9 +244,15 @@ class CommandSwitchAccessory {
     }
 
     await this.coordinator.run(this.accessory.UUID, async () => {
-      const command = targetState ? this.options.onCommand : this.options.offCommand;
-      if (targetState || command) {
-        await this.executeCommandWithDebug(command, this.options.commandTimeoutSeconds, source);
+      const action = this.getAction(targetState ? 'on' : 'off');
+      if (targetState || action) {
+        const result = await this.executeActionWithDebug(action, this.options.commandTimeoutSeconds, source);
+        if (action?.matchPattern) {
+          const payload = action.transport === 'webhook' ? result.body : result.stdout;
+          if (!this.evaluateMatch(action, payload, targetState ? 'on' : 'off')) {
+            throw new Error(`Action output did not match ${targetState ? 'ON' : 'OFF'} confirmation pattern`);
+          }
+        }
       }
       if (!targetState && source !== 'auto-off' && this.autoOffTimer) {
         this.log.info('[CommandSwitch:%s] Auto-off cancelled', this.options.name);
@@ -176,19 +269,13 @@ class CommandSwitchAccessory {
   }
 
   async pollState() {
-    if (!this.options.stateCommand || this.stopped) {
+    const action = this.getAction('status');
+    if (!action || this.stopped) {
       return;
     }
 
     await this.coordinator.run(this.accessory.UUID, async () => {
-      let nextState = false;
-      try {
-        await this.executeCommandWithDebug(this.options.stateCommand, this.options.commandTimeoutSeconds, 'poll');
-        nextState = true;
-      } catch (error) {
-        nextState = false;
-      }
-
+      const nextState = await this.executeStateAction(action, 'poll');
       this.updateState(nextState, 'poll');
     }, {
       timeoutMs: (this.options.commandTimeoutSeconds * 1000) + 2000,
