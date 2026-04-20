@@ -4,7 +4,8 @@
   "description": "Unified automation switches and triggers for Homebridge",
   "main": "index.js",
   "scripts": {
-    "test": "node --test \"test/**/*.test.js\""
+    "test": "node --test \"test/**/*.test.js\"",
+    "verify": "npm test && npm pack --dry-run"
   },
   "engines": {
     "homebridge": "^1.6.0 || ^2.0.0-beta.0",
@@ -17,6 +18,22 @@
     "calendar",
     "trigger"
   ],
+  "files": [
+    "README.md",
+    "LICENSE",
+    "config.schema.json",
+    "index.js",
+    "src",
+    "homebridge-ui/public"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peterneutron/homebridge-ultimate-switches.git"
+  },
+  "bugs": {
+    "url": "https://github.com/peterneutron/homebridge-ultimate-switches/issues"
+  },
+  "homepage": "https://github.com/peterneutron/homebridge-ultimate-switches#readme",
   "dependencies": {
     "node-ical": "^0.25.1"
   },
