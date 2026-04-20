@@ -4,7 +4,7 @@
   "description": "Unified automation switches and triggers for Homebridge",
   "main": "index.js",
   "scripts": {
-    "test": "node --test \"test/**/*.test.js\"",
+    "test": "node --test",
     "verify": "npm test && npm pack --dry-run"
   },
   "engines": {
