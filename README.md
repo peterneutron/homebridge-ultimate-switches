@@ -4,7 +4,7 @@
 
 - Platform: `UltimateSwitches`
 - Homebridge: `^1.6.0 || ^2.0.0-beta.0`
-- Node.js: `^18.20.4 || ^20.15.1 || ^22`
+- Node.js: `^20.18.0 || ^22.10.0 || ^24.0.0`
 - Config UI: Custom Config UI X page (`customUi: true`)
 
 ## What It Covers
