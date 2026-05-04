@@ -35,7 +35,7 @@
   },
   "homepage": "https://github.com/peterneutron/homebridge-ultimate-switches#readme",
   "dependencies": {
-    "node-ical": "^0.26.0"
+    "node-ical": "^0.26.1"
   },
   "license": "MIT"
 }
